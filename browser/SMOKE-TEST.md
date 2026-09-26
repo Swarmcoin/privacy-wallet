@@ -47,7 +47,9 @@ missing or the path moved: run
 
 ## 4. Receive
 
-1. Open the popup. It should now say **Locked**.
+1. Open the popup. Right after creating the wallet it is still unlocked
+   (you just saw the recovery phrase). After five idle minutes, or after
+   closing and reopening Edge, it says **Locked**.
 2. **Unlock with Windows Hello** → Windows should raise its own consent dialog.
 3. The balance shows as `⬢⬢⬢.⬢⬢ SWM` until you press **Show**.
 4. **Receive** shows the address and a QR code. Check the address starts
