@@ -1,0 +1,15 @@
+{
+  "name": "swarm-wallet-host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native-messaging host for the SWARM Wallet browser extension. Holds the wallet keys outside the browser.",
+  "license": "MIT",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "e2e": "node ../e2e/e2e-mainnet.js"
+  }
+}

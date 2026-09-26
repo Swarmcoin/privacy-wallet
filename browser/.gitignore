@@ -1,0 +1,12 @@
+# Written by browser/install/install.js on the machine it runs on. Every line
+# in these files is an absolute path belonging to that machine, so none of them
+# belongs in the repository.
+host/bin/node.path
+host/native.path
+install/green.swarm.wallet_host.json
+
+# The wallet core: a 78 MB binary produced by the wallet's own CI. The host is
+# pointed at the copy the desktop wallet already installed; it is never checked
+# in and never copied into a commit.
+host/vendor/
+**/native.node
