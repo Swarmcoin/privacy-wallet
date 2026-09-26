@@ -11,6 +11,7 @@
  * `connect-src 'none'` so it could not if it tried. Everything that reaches
  * SWARM mainnet goes through the host.
  */
+import { isOwnPage } from "./lib/sender.js";
 
 const HOST_NAME = "green.swarm.wallet_host";
 
@@ -129,9 +130,10 @@ const ALLOWED = new Set([
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.type !== "swarm.command") return false;
-  // Only this extension's own pages. A message from a content script or
-  // another extension has a sender.tab or a different id, and is dropped.
-  if (sender.id !== chrome.runtime.id || sender.tab) {
+  // Only this extension's own pages. Onboarding and settings open in tabs,
+  // so the test is the sender's origin, not whether it has a tab; a content
+  // script (web origin) or another extension (other id) is dropped.
+  if (!isOwnPage(sender, chrome.runtime.id)) {
     sendResponse({ ok: false, error: { code: "refused", message: "Only the SWARM Wallet screens may ask." } });
     return false;
   }
