@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Wallet history</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <img src="icons/wallet-128.png" alt="" />
+      <span class="title">History</span>
+      <span class="spacer"></span>
+      <span class="network" id="network">…</span>
+    </div>
+    <div class="panel">
+      <div class="row between">
+        <span class="balance-label" id="count">…</span>
+        <button id="refresh" class="link">Refresh</button>
+      </div>
+      <div class="error hidden" id="error"></div>
+      <div id="list"></div>
+      <p class="note hidden" id="empty">
+        Nothing yet. Payments appear here once the wallet has scanned the block that carries them.
+      </p>
+    </div>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

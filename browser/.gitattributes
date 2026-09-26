@@ -1,0 +1,4 @@
+# The repository root sets `* text eol=lf`, which would rewrite line endings
+# inside the bundled fonts and corrupt them. Web fonts are binary.
+*.woff2 binary
+*.woff binary

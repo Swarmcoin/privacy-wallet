@@ -1,0 +1,156 @@
+/**
+ * The one place the extension talks to the wallet host.
+ *
+ * Every screen — popup, side panel, onboarding, settings — sends a message to
+ * this service worker and gets an answer. None of them holds the native port,
+ * for two reasons: a popup is destroyed the moment it loses focus, which would
+ * close the port and kill the host mid-payment; and one port means one wallet
+ * session, so the side panel and the popup cannot end up unlocked separately.
+ *
+ * This file makes NO network requests, and the manifest's CSP sets
+ * `connect-src 'none'` so it could not if it tried. Everything that reaches
+ * SWARM mainnet goes through the host.
+ */
+
+const HOST_NAME = "green.swarm.wallet_host";
+
+/** The live port, or null. Recreated on demand. */
+let port = null;
+/** id -> resolve, for the requests waiting on an answer. */
+const pending = new Map();
+let nextId = 1;
+
+/** The last thing that went wrong with the connection, for the popup to show. */
+let lastConnectionError = null;
+
+function connect() {
+  if (port) return port;
+  try {
+    port = chrome.runtime.connectNative(HOST_NAME);
+  } catch (e) {
+    lastConnectionError = String((e && e.message) || e);
+    port = null;
+    return null;
+  }
+  port.onMessage.addListener((answer) => {
+    const resolve = pending.get(answer && answer.id);
+    if (resolve) {
+      pending.delete(answer.id);
+      resolve(answer);
+    }
+  });
+  port.onDisconnect.addListener(() => {
+    const error = chrome.runtime.lastError;
+    lastConnectionError = error ? error.message : null;
+    port = null;
+    // Everything still waiting is answered, not abandoned: a screen that keeps
+    // spinning after the host died is the worst failure mode here.
+    for (const [id, resolve] of pending) {
+      resolve({
+        id,
+        ok: false,
+        error: {
+          code: "host_unavailable",
+          message: lastConnectionError || "The SWARM wallet host stopped. Run the installer, then try again.",
+        },
+      });
+    }
+    pending.clear();
+    broadcast({ type: "swarm.locked", reason: "host_disconnected" });
+  });
+  lastConnectionError = null;
+  return port;
+}
+
+/** Asks the host one thing. Never rejects: failures come back as `ok: false`. */
+function ask(command, params) {
+  const live = connect();
+  if (!live) {
+    return Promise.resolve({
+      ok: false,
+      error: {
+        code: "host_missing",
+        message:
+          lastConnectionError ||
+          "The SWARM wallet host is not registered with this browser. Run 'Install SWARM Browser Wallet (dev).cmd'.",
+      },
+    });
+  }
+  const id = nextId++;
+  return new Promise((resolve) => {
+    pending.set(id, resolve);
+    const timer = setTimeout(() => {
+      if (pending.delete(id)) {
+        resolve({ ok: false, error: { code: "timeout", message: `${command} did not answer in time.` } });
+      }
+    }, 180000);
+    try {
+      live.postMessage({ id, command, params: params || {} });
+    } catch (e) {
+      clearTimeout(timer);
+      pending.delete(id);
+      port = null;
+      resolve({ ok: false, error: { code: "host_unavailable", message: String((e && e.message) || e) } });
+    }
+  });
+}
+
+/** Tells every open screen something changed. Failures are expected and ignored. */
+function broadcast(message) {
+  try {
+    chrome.runtime.sendMessage(message).catch(() => {});
+  } catch (_) {
+    /* no screen is open */
+  }
+}
+
+/**
+ * The command allow-list on this side of the port.
+ *
+ * The host has its own, and this is not a substitute for it. It is here so
+ * that a bug in a screen cannot invent a command name, and so the list of what
+ * the browser can ask for is readable in one place.
+ */
+const ALLOWED = new Set([
+  "status",
+  "wallet.exists",
+  "wallet.create",
+  "wallet.restore",
+  "wallet.unlock",
+  "wallet.lock",
+  "balance",
+  "addresses",
+  "history",
+  "send",
+  "sync.start",
+  "sync.status",
+  "settings.network",
+]);
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || message.type !== "swarm.command") return false;
+  // Only this extension's own pages. A message from a content script or
+  // another extension has a sender.tab or a different id, and is dropped.
+  if (sender.id !== chrome.runtime.id || sender.tab) {
+    sendResponse({ ok: false, error: { code: "refused", message: "Only the SWARM Wallet screens may ask." } });
+    return false;
+  }
+  if (!ALLOWED.has(message.command)) {
+    sendResponse({ ok: false, error: { code: "unknown_command", message: `'${message.command}' is not a command.` } });
+    return false;
+  }
+  ask(message.command, message.params).then((answer) => {
+    if (message.command === "wallet.lock" && answer.ok) broadcast({ type: "swarm.locked", reason: "user" });
+    if (message.command === "wallet.unlock" && answer.ok) broadcast({ type: "swarm.unlocked" });
+    sendResponse(answer);
+  });
+  return true; // the answer comes later
+});
+
+// Clicking the toolbar icon opens the popup (manifest `action`); the side panel
+// is opened from the popup's History button.
+chrome.runtime.onInstalled.addListener(() => {
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
+  }
+});

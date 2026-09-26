@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Set up your SWARM Wallet</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <img src="icons/wallet-128.png" alt="" />
+      <span class="title">SWARM Wallet</span>
+      <span class="spacer"></span>
+      <span class="network" id="network">…</span>
+    </div>
+
+    <div class="panel" id="wrap">
+      <!-- choose -->
+      <div id="step-choose">
+        <h1>Set up your wallet</h1>
+        <p>
+          Your keys stay on this computer, in a program outside the browser. The extension can see your balance and ask
+          the program to pay someone; it never holds your recovery phrase.
+        </p>
+        <div class="buttons">
+          <button id="choose-create" class="primary">Create a new wallet</button>
+          <button id="choose-restore">Restore from a phrase</button>
+        </div>
+      </div>
+
+      <!-- create: warn -->
+      <div id="step-warn" class="hidden">
+        <div class="steps">Step 1 of 3</div>
+        <h1>Before you create it</h1>
+        <div class="warning">
+          Your wallet is a recovery phrase of 24 words. Anyone who reads those words can spend your coins, and nobody —
+          not the project, not this computer — can recover them for you if you lose them. Write them on paper.
+        </div>
+        <div class="error hidden" id="warn-error"></div>
+        <div class="buttons">
+          <button id="warn-back" class="ghost">Back</button>
+          <button id="warn-go" class="primary">I have paper ready</button>
+        </div>
+      </div>
+
+      <!-- create: show the seed -->
+      <div id="step-seed" class="hidden">
+        <div class="steps">Step 2 of 3</div>
+        <h1>Write these 24 words down</h1>
+        <p>They are shown once. Closing this page before you have written them down means losing the wallet.</p>
+        <div class="seed" id="seed"></div>
+        <p class="note">Wallet birthday: <span class="mono" id="seed-birthday"></span> — the block the wallet starts scanning from.</p>
+        <div class="buttons">
+          <button id="seed-copy" class="ghost">Copy to clipboard</button>
+          <button id="seed-next" class="primary">I have written them down</button>
+        </div>
+      </div>
+
+      <!-- create: confirm -->
+      <div id="step-confirm" class="hidden">
+        <div class="steps">Step 3 of 3</div>
+        <h1>Check your copy</h1>
+        <p id="confirm-ask">Type word number 7.</p>
+        <input id="confirm-word" type="text" spellcheck="false" autocomplete="off" />
+        <div class="error hidden" id="confirm-error"></div>
+        <div class="buttons">
+          <button id="confirm-again" class="ghost">Show the words again</button>
+          <button id="confirm-check" class="primary">Check</button>
+        </div>
+      </div>
+
+      <!-- restore -->
+      <div id="step-restore" class="hidden">
+        <h1>Restore a wallet</h1>
+        <p>Type the 24 words of your recovery phrase, separated by spaces.</p>
+        <label for="restore-seed">Recovery phrase</label>
+        <textarea id="restore-seed" spellcheck="false" autocomplete="off"></textarea>
+        <label for="restore-birthday">Birthday block (optional)</label>
+        <input id="restore-birthday" type="text" inputmode="numeric" placeholder="1" />
+        <p class="note">
+          The birthday is the block the wallet starts scanning from. Leave it empty to scan the whole chain, which is
+          slower but never misses anything.
+        </p>
+        <div class="error hidden" id="restore-error"></div>
+        <div class="buttons">
+          <button id="restore-back" class="ghost">Back</button>
+          <button id="restore-go" class="primary">Restore</button>
+        </div>
+      </div>
+
+      <!-- done -->
+      <div id="step-done" class="hidden">
+        <h1>Your wallet is ready</h1>
+        <p class="ok" id="done-note">It is syncing now. Open it from the SWARM Wallet icon in the toolbar.</p>
+        <div class="section">
+          <span class="balance-label">Your address</span>
+          <div class="address" id="done-address"></div>
+        </div>
+        <button id="done-copy" class="ghost">Copy address</button>
+      </div>
+    </div>
+    <script type="module" src="onboarding.js"></script>
+  </body>
+</html>

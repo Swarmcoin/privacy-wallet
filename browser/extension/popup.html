@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Wallet</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="popup">
+      <div class="topbar">
+        <img src="icons/wallet-128.png" alt="" />
+        <span class="title">SWARM Wallet</span>
+        <span class="spacer"></span>
+        <span class="network" id="network">…</span>
+      </div>
+
+      <div class="content">
+        <!-- the host is not there -->
+        <div id="view-nohost" class="hidden">
+          <h1>The wallet host is not running</h1>
+          <p>
+            Your keys live outside the browser, in a small program on this computer. The browser cannot reach it yet.
+          </p>
+          <div class="error" id="nohost-detail"></div>
+          <p class="note">
+            Run <span class="mono">Install SWARM Browser Wallet (dev).cmd</span> from the wallet's
+            <span class="mono">browser/install</span> folder, then reopen this popup.
+          </p>
+          <button id="nohost-retry" class="primary">Try again</button>
+        </div>
+
+        <!-- no wallet yet -->
+        <div id="view-setup" class="hidden">
+          <h1>No wallet on this computer</h1>
+          <p>Create a new SWARM wallet, or restore one you already have from its recovery phrase.</p>
+          <div class="buttons">
+            <button id="setup-create" class="primary">Create a wallet</button>
+            <button id="setup-restore">Restore</button>
+          </div>
+        </div>
+
+        <!-- locked -->
+        <div id="view-locked" class="hidden">
+          <h1>Locked</h1>
+          <p>Your wallet is closed and its keys are not in memory. Unlock it to see your balance.</p>
+          <div class="error hidden" id="locked-error"></div>
+          <button id="locked-unlock" class="primary">Unlock with Windows Hello</button>
+          <p class="note" id="locked-note"></p>
+        </div>
+
+        <!-- the wallet -->
+        <div id="view-wallet" class="hidden">
+          <div class="section">
+            <div class="row between">
+              <span class="balance-label">Shielded balance</span>
+              <button id="reveal" class="link">Show</button>
+            </div>
+            <div class="balance masked" id="balance">⬢⬢⬢.⬢⬢ SWM</div>
+            <div class="balance-sub" id="balance-sub"></div>
+          </div>
+
+          <div class="buttons three">
+            <button id="go-receive">Receive</button>
+            <button id="go-send">Send</button>
+            <button id="go-history">History</button>
+          </div>
+          <div class="buttons">
+            <button id="go-settings" class="ghost">Settings</button>
+            <button id="lock" class="danger">Lock</button>
+          </div>
+        </div>
+
+        <!-- receive -->
+        <div id="view-receive" class="hidden">
+          <div class="row between">
+            <h1>Receive</h1>
+            <button id="receive-back" class="link">Back</button>
+          </div>
+          <p class="note">Share this address. Payments to it are shielded.</p>
+          <div class="qr"><canvas id="receive-qr"></canvas></div>
+          <div class="address" id="receive-address"></div>
+          <div class="buttons">
+            <button id="receive-copy">Copy address</button>
+            <button id="receive-transparent" class="ghost">Transparent</button>
+          </div>
+          <p class="note" id="receive-kind"></p>
+        </div>
+
+        <!-- send -->
+        <div id="view-send" class="hidden">
+          <div class="row between">
+            <h1>Send</h1>
+            <button id="send-back" class="link">Back</button>
+          </div>
+          <div class="stack">
+            <div>
+              <label for="send-to">To</label>
+              <input id="send-to" type="text" spellcheck="false" placeholder="swm1…" />
+            </div>
+            <div>
+              <label for="send-amount">Amount</label>
+              <input id="send-amount" type="text" inputmode="decimal" placeholder="0.00" />
+            </div>
+            <div>
+              <label for="send-memo">Memo (optional, shielded)</label>
+              <input id="send-memo" type="text" maxlength="512" />
+            </div>
+            <div class="error hidden" id="send-error"></div>
+            <button id="send-review" class="primary">Review</button>
+          </div>
+        </div>
+
+        <!-- send confirmation -->
+        <div id="view-confirm" class="hidden">
+          <h1>Confirm this payment</h1>
+          <div class="section stack">
+            <div>
+              <span class="balance-label">Amount</span>
+              <div class="amount" id="confirm-amount"></div>
+            </div>
+            <div>
+              <span class="balance-label">To</span>
+              <div class="address" id="confirm-to"></div>
+            </div>
+            <div id="confirm-memo-row">
+              <span class="balance-label">Memo</span>
+              <div class="note" id="confirm-memo"></div>
+            </div>
+          </div>
+          <p class="note">Windows Hello will ask you to confirm. A sent payment cannot be recalled.</p>
+          <div class="error hidden" id="confirm-error"></div>
+          <div class="buttons">
+            <button id="confirm-cancel">Cancel</button>
+            <button id="confirm-send" class="primary">Send</button>
+          </div>
+        </div>
+
+        <!-- sent -->
+        <div id="view-sent" class="hidden">
+          <h1>Sent</h1>
+          <p class="ok">The payment was broadcast.</p>
+          <span class="balance-label">Transaction</span>
+          <div class="address" id="sent-txid"></div>
+          <div class="buttons">
+            <button id="sent-copy">Copy id</button>
+            <button id="sent-done" class="primary">Done</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sync">
+        <span class="dot" id="sync-dot"></span>
+        <span id="sync-text">Checking…</span>
+      </div>
+    </div>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

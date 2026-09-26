@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Wallet settings</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <img src="icons/wallet-128.png" alt="" />
+      <span class="title">Settings</span>
+      <span class="spacer"></span>
+      <span class="network" id="network">…</span>
+    </div>
+
+    <div class="panel">
+      <div class="section">
+        <h2>Network</h2>
+        <div class="row between">
+          <span class="note">Network</span>
+          <span class="mono" id="net-name"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Indexer</span>
+          <span class="mono" id="net-server"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Network block</span>
+          <span class="mono" id="net-height"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Wallet block</span>
+          <span class="mono" id="net-wallet-height"></span>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>This computer</h2>
+        <div class="row between">
+          <span class="note">Wallet host</span>
+          <span class="mono" id="host-version"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Wallet core</span>
+          <span class="mono" id="core-state"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Device authentication</span>
+          <span class="mono" id="device-auth"></span>
+        </div>
+        <div class="row between">
+          <span class="note">Wallet folder</span>
+        </div>
+        <div class="address" id="wallet-dir"></div>
+        <div class="row between">
+          <span class="note">Extension id</span>
+        </div>
+        <div class="address" id="ext-id"></div>
+      </div>
+
+      <div class="section">
+        <h2>What this extension can and cannot do</h2>
+        <p class="note">
+          It has no permission to read any web page and makes no network requests of its own. Everything it shows comes
+          from the wallet host on this computer, and the host is the only thing that talks to the SWARM network. Your
+          recovery phrase never enters the browser.
+        </p>
+        <p class="note">
+          The wallet file on disk is not encrypted with a passphrase. It is protected by your Windows account and by
+          Windows Hello, which is asked for before unlocking and again before every payment.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>Advanced</h2>
+        <p class="note">
+          If you have been asked to test on the SWARM test network, type <span class="mono">testnet</span> below. Test
+          coins have no value. Lock the wallet first.
+        </p>
+        <input id="advanced-word" type="text" spellcheck="false" autocomplete="off" placeholder="" />
+        <div class="error hidden" id="advanced-error"></div>
+        <div id="advanced-switch" class="hidden">
+          <p class="note">This build can be pointed at either SWARM network. It will not move your existing wallet.</p>
+          <div class="buttons">
+            <button id="to-mainnet">SWARM Mainnet</button>
+            <button id="to-testnet">SWARM Testnet</button>
+          </div>
+          <p class="ok hidden" id="advanced-ok"></p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>

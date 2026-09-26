@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "SWARM Wallet",
+  "short_name": "SWARM Wallet",
+  "version": "0.1.0",
+  "description": "Shielded SWM wallet. Your keys never enter the browser: the extension talks to the SWARM wallet host on this computer.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvdICTfJGD9tfxNThdosTOIJ4dSz1Oh4hQDPx0i4vTq+OEIl5UeiBKIiV0whwUq+Cf0ddvWXvdLyCIT319fF/2U2LET/2+cQgEcqg5X2PzBJFEs/fudLid96YDP+didpXFCeR/wBmggP5cc4y1Il7LbMONlOdeHsJ8bKvpHhWIfl6d9uZalQpA55xMANVSNKh6YPbraHkSB4fecGxRJ+aa4pu6IbdzTliOQPjqmpchapOKxKXt9RGS99t0p27JVSvQY4swiwYOBEiMhoEUBsIwF6GhlpAAtM2Nx60bwHXG7XN0WKuzxe2cmIxMe9MHUFSHfP1CXT1eIlbovb3tXJJmwIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["nativeMessaging", "storage", "sidePanel"],
+  "host_permissions": [],
+  "action": {
+    "default_title": "SWARM Wallet",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "icons/wallet-128.png"
+    }
+  },
+  "icons": {
+    "128": "icons/wallet-128.png",
+    "192": "icons/wallet-192.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'; img-src 'self' data:; font-src 'self'; style-src 'self'"
+  },
+  "content_scripts": [],
+  "web_accessible_resources": []
+}
