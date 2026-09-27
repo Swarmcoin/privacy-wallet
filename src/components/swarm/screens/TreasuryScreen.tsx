@@ -5,8 +5,8 @@ import { ContextApp } from "../../../context/ContextAppState";
 import { SWARM_TICKER } from "../../../utils/swarmNetwork";
 import { useCopy } from "../../common/useCopy";
 import {
+  describeHoldings,
   explainSelection,
-  formatZat,
   selectUtxos,
   type TreasuryUtxoSet,
 } from "../../../treasury/selectUtxos";
@@ -624,6 +624,12 @@ export const TreasuryScreen: React.FC = () => {
                       {selection.reason}
                     </div>
                   )}
+                  {utxoSet?.truncated && (
+                    <div className={styles.fieldNote}>
+                      Only the oldest {utxoSet.utxos.length} outputs of this fund were read, so one payout can
+                      spend at most those. The fund holds more.
+                    </div>
+                  )}
                   {selection && selection.ok && (
                     <div className={styles.guidance} role="note">
                       {explainSelection(selection, null, SWARM_TICKER)}
@@ -956,7 +962,7 @@ const FundsPanel: React.FC<{
                 ? "not asked yet"
                 : typeof balance === "string"
                   ? balance
-                  : `${formatZat(balance.mature_total)} mature, ${formatZat(balance.immature_total)} not yet spendable (${balance.utxos.length} outputs at height ${balance.chain_height})`}
+                  : describeHoldings(balance)}
             </span>
           </div>
           <div className={styles.actionRow}>

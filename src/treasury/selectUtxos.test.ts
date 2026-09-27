@@ -1,9 +1,11 @@
 import {
+  describeHoldings,
   explainSelection,
   formatZat,
   selectUtxos,
   selectionOrder,
   type TreasuryUtxo,
+  type TreasuryUtxoSet,
 } from "./selectUtxos";
 
 const utxo = (over: Partial<TreasuryUtxo>): TreasuryUtxo => ({
@@ -137,5 +139,33 @@ describe("writing amounts", () => {
     expect(formatZat(1)).toBe("0.00000001");
     expect(formatZat(100_000_000)).toBe("1.00000000");
     expect(formatZat(123_456_789_012_345)).toBe("1,234,567.89012345");
+  });
+});
+
+describe("what a fund holds", () => {
+  const set = (over: Partial<TreasuryUtxoSet>): TreasuryUtxoSet => ({
+    address: "s3fLmEHc1xqs8KAe7QS7oupkhuGDjidV4eq",
+    chain_height: 1481,
+    coinbase_maturity: 100,
+    mature_total: 10_000_000_000,
+    immature_total: 0,
+    utxos: Array.from({ length: 200 }, (_, i) => utxo({ vout: i, value: 50_000_000, height: i + 1 })),
+    truncated: false,
+    ...over,
+  });
+
+  it("gives the whole balance when the addon read every output", () => {
+    expect(describeHoldings(set({ immature_total: 150_000_000 }))).toBe(
+      "100.00000000 mature, 1.50000000 not yet spendable (200 outputs at height 1481)",
+    );
+  });
+
+  it("says it is a floor when the addon stopped reading", () => {
+    // What Core showed on mainnet at height 1481: its first 200 outputs.
+    const sentence = describeHoldings(set({ truncated: true }));
+    expect(sentence).toBe(
+      "at least 100.00000000 mature: only the oldest 200 outputs were read, and the fund holds more (height 1481)",
+    );
+    expect(sentence).not.toContain("not yet spendable");
   });
 });

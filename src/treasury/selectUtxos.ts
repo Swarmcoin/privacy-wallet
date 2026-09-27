@@ -131,6 +131,27 @@ export function formatZat(zat: number): string {
 }
 
 /**
+ * What the Funds tab says a fund holds.
+ *
+ * The addon reads at most a fixed number of a fund's outputs (each one costs
+ * the indexer a transaction lookup to learn whether it is a coinbase output),
+ * the oldest first, and answers `truncated` when there were more. A fund that
+ * collects a share of every block passes that limit within hours of launch, so
+ * the sum of what was read is a floor, not a balance, and the sentence has to
+ * say which one it is. Until 0.1.0-mainnet.6 it did not: every mainnet fund
+ * showed the sum of its first 200 outputs as if it were all it held, with
+ * nothing "not yet spendable" because the newest outputs were never read.
+ */
+export function describeHoldings(set: TreasuryUtxoSet): string {
+  const read = `${set.utxos.length} output${set.utxos.length === 1 ? "" : "s"}`;
+  if (set.truncated) {
+    const were = set.utxos.length === 1 ? "was" : "were";
+    return `at least ${formatZat(set.mature_total)} mature: only the oldest ${read} ${were} read, and the fund holds more (height ${set.chain_height})`;
+  }
+  return `${formatZat(set.mature_total)} mature, ${formatZat(set.immature_total)} not yet spendable (${read} at height ${set.chain_height})`;
+}
+
+/**
  * The sentence the page shows once a selection has been made.
  *
  * It says the exact amount the recipient receives, and it says it before the

@@ -171,4 +171,16 @@ describe("TreasuryScreen, starting a payout", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("The most this fund can pay right now is 300000000 zat");
     expect(screen.getByRole("button", { name: "Build the proposal" })).toBeDisabled();
   });
+
+  it("says a fund's balance is only a floor when the indexer list was cut short", async () => {
+    mocked.loadFundUtxos.mockResolvedValue({ ...holdings(core, 5_000_000_000), truncated: true });
+    renderTreasury();
+
+    const [refreshCore] = await screen.findAllByRole("button", { name: "Refresh" });
+    await userEvent.click(refreshCore);
+
+    expect(await screen.findByText(/at least 50\.00000000 mature: only the oldest 1 output was read/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "New payout from Core" }));
+    expect(screen.getByText(/Only the oldest 1 outputs of this fund were read/)).toBeInTheDocument();
+  });
 });
