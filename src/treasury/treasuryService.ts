@@ -161,7 +161,11 @@ export async function buildProposal(input: {
     memo: input.memo,
     expiry_height: input.expiryHeight,
     fee: input.fee ?? null,
-    pool: "v6_ironwood",
+    // The network upgrade the transaction is built under, spelled the way
+    // the custody tool spells it (`Pool::parse`): `nu6_3`, the mainnet case,
+    // which pays into the Ironwood pool. `v6_ironwood` is the name of the
+    // Rust variant, not of the input, and passing it is refused.
+    pool: "nu6_3",
   });
   const proposalJson = await native.treasury_proposal_build(request);
   const summary = await summarise(proposalJson, input.fund.policyJson);

@@ -171,7 +171,10 @@ pub struct BuildRequest {
     /// The approved fee, or `null` for the ZIP-317 conventional fee.
     #[serde(default)]
     pub fee: Option<u64>,
-    /// The shielded pool. `v6_ironwood` on the mainnet path.
+    /// The network upgrade the transaction is built under, as
+    /// `swarm_treasury::shielded::Pool::parse` spells it: `nu6_3` (the
+    /// mainnet case, paying into the Ironwood pool) or `nu5`. Absent means
+    /// `nu6_3`.
     #[serde(default)]
     pub pool: Option<String>,
 }
@@ -590,7 +593,7 @@ mod tests {
             "memo": "SWARM treasury payout, from the Treasury page",
             "expiry_height": 3_000_500u32,
             "fee": serde_json::Value::Null,
-            "pool": "v6_ironwood",
+            "pool": "nu6_3",
         });
         let proposal_json =
             proposal_build(&serde_json::to_string(&request).expect("json")).expect("builds");
@@ -669,7 +672,7 @@ mod tests {
             "recipient": hex::encode(recipient.to_raw_address_bytes()),
             "memo": "",
             "expiry_height": 3_000_400u32,
-            "pool": "v6_ironwood",
+            "pool": "nu6_3",
         });
         let proposal_json =
             proposal_build(&serde_json::to_string(&request).expect("json")).expect("builds");
