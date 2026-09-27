@@ -1942,6 +1942,63 @@ ipcMain.handle("native:parse_address", (_e, address) => requireNative("parse_add
 ipcMain.handle("native:parse_ufvk", (_e, ufvk) => requireNative("parse_ufvk").parse_ufvk(ufvk));
 ipcMain.handle("native:get_messages", (_e, address) => requireNative("get_messages").get_messages(address));
 ipcMain.handle("native:zec_price_over_mixnet", () => requireNative("zec_price_over_mixnet").zec_price_over_mixnet());
+
+// --- The 2-of-3 treasury custody surface -----------------------------------
+//
+// Eleven addon functions (native/src/treasury.rs), JSON in and JSON out,
+// reached the same way every other native call is: the preload turns
+// `native.<name>(...)` into `native:<name>` and main performs it.
+//
+// They were in neither list until 2026-09-27, so in a packaged build every
+// one of them was `undefined` in the renderer: the Treasury page threw on
+// mount, at `treasury_policy_verify`, before it had drawn a single fund. The
+// jest manual mock supplied all eleven, which is why the suite never noticed.
+// `src/nativeSurface.test.ts` now holds the addon's declared surface against
+// this list, and `src/rpc/nativeIpc.test.ts` already held the bridge against
+// these handlers.
+//
+// Written out one by one rather than generated from a table, because that is
+// the shape `nativeIpc.test.ts` reads and a handler it cannot see is a
+// handler nothing checks.
+//
+// `treasuryArgs` is the same guard on each: exactly the arity the addon
+// declares, and strings. The bridge forwards `...args` blindly, and Neon
+// reads its arguments positionally, so a renderer sending the wrong shape
+// would otherwise reach the binding. Two of these take a passphrase; it is
+// used for that one call, never logged here and never stored.
+function treasuryArgs(method, arity, args) {
+  if (args.length !== arity) {
+    throw new Error(`native.${method} takes ${arity} argument(s), not ${args.length}`);
+  }
+  for (const argument of args) {
+    if (typeof argument !== "string") throw new Error(`native.${method} takes strings`);
+  }
+  return args;
+}
+
+ipcMain.handle("native:treasury_signer_import", (_e, ...a) =>
+  requireNative("treasury_signer_import").treasury_signer_import(...treasuryArgs("treasury_signer_import", 2, a)));
+ipcMain.handle("native:treasury_policy_verify", (_e, ...a) =>
+  requireNative("treasury_policy_verify").treasury_policy_verify(...treasuryArgs("treasury_policy_verify", 1, a)));
+ipcMain.handle("native:treasury_proposal_build", (_e, ...a) =>
+  requireNative("treasury_proposal_build").treasury_proposal_build(...treasuryArgs("treasury_proposal_build", 1, a)));
+ipcMain.handle("native:treasury_proposal_summary", (_e, ...a) =>
+  requireNative("treasury_proposal_summary").treasury_proposal_summary(...treasuryArgs("treasury_proposal_summary", 2, a)));
+ipcMain.handle("native:treasury_proposal_sign", (_e, ...a) =>
+  requireNative("treasury_proposal_sign").treasury_proposal_sign(...treasuryArgs("treasury_proposal_sign", 4, a)));
+ipcMain.handle("native:treasury_signatures_combine", (_e, ...a) =>
+  requireNative("treasury_signatures_combine").treasury_signatures_combine(...treasuryArgs("treasury_signatures_combine", 3, a)));
+ipcMain.handle("native:treasury_utxos_from_lightwalletd", (_e, ...a) =>
+  requireNative("treasury_utxos_from_lightwalletd").treasury_utxos_from_lightwalletd(...treasuryArgs("treasury_utxos_from_lightwalletd", 3, a)));
+ipcMain.handle("native:treasury_broadcast", (_e, ...a) =>
+  requireNative("treasury_broadcast").treasury_broadcast(...treasuryArgs("treasury_broadcast", 2, a)));
+ipcMain.handle("native:treasury_seal", (_e, ...a) =>
+  requireNative("treasury_seal").treasury_seal(...treasuryArgs("treasury_seal", 2, a)));
+ipcMain.handle("native:treasury_unseal", (_e, ...a) =>
+  requireNative("treasury_unseal").treasury_unseal(...treasuryArgs("treasury_unseal", 2, a)));
+ipcMain.handle("native:treasury_session_id", (_e, ...a) =>
+  requireNative("treasury_session_id").treasury_session_id(...treasuryArgs("treasury_session_id", 1, a)));
+
 // --- Mixnet transport: main-owned, session-level (ADR 0024) ----------------
 // Main spawns and holds the nym-proxy for the whole app session. Switching
 // wallets re-attaches the new LightClient to the same tunnel instead of
