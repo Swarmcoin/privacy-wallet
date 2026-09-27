@@ -42,6 +42,7 @@ export const native = {
   treasury_proposal_sign: jest.fn(),
   treasury_signatures_combine: jest.fn(),
   treasury_utxos_from_lightwalletd: jest.fn(),
+  treasury_broadcast: jest.fn(),
   treasury_seal: jest.fn(),
   treasury_unseal: jest.fn(),
   treasury_session_id: jest.fn(),

@@ -244,8 +244,16 @@ get a txid.
 (the relay)", a live Combine button, and below it a Combined box with the
 64-character txid.*
 
-Broadcasting is the last step; after that the payment appears in this
-wallet's own view of the chain like any other.
+Then **Broadcast** — its own press, on its own panel, because it is the one
+irreversible step. It goes out through `SendTransaction`, the same
+lightwalletd call the wallet's own payments use, and the txid the panel then
+shows is the one the server answered with rather than the one the combiner
+assumed.
+
+*Screenshot: the Sent box, with the txid and the sentence "The network took
+it. From here it is a payment like any other: it will appear in this
+wallet's own Activity, with its confirmations, as soon as the wallet next
+syncs past the block it lands in."*
 
 ---
 

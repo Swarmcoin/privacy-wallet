@@ -230,6 +230,22 @@ export async function combine(
   return JSON.parse(combined) as CombinedTransaction;
 }
 
+/**
+ * Hands the combined transaction to the network.
+ *
+ * The same `SendTransaction` the wallet's own payments go out through: a
+ * treasury payout is not special to the indexer, and it must not need a
+ * node, an RPC cookie or a second piece of infrastructure to reach the
+ * network. The txid comes back from the server rather than being assumed
+ * from the combiner's.
+ */
+export async function broadcast(serverUri: string, rawHex: string): Promise<string> {
+  const answer = JSON.parse(await native.treasury_broadcast(serverUri, rawHex)) as {
+    txid: string;
+  };
+  return answer.txid;
+}
+
 /** Seals a blob for the relay under the session code. */
 export async function seal(code: string, plaintext: string): Promise<string> {
   return native.treasury_seal(code, plaintext);

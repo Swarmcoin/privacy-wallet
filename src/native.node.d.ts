@@ -175,6 +175,8 @@ export function treasury_utxos_from_lightwalletd(
   address: string,
   lock_script_hex: string,
 ): Promise<string>;
+/** Hands a combined transaction to the network with `SendTransaction`. */
+export function treasury_broadcast(server_uri: string, raw_hex: string): Promise<string>;
 /** Seals a relay blob under the session code (`age`, scrypt recipient). */
 export function treasury_seal(passphrase: string, plaintext: string): Promise<string>;
 /** Opens a relay blob sealed under the session code. */

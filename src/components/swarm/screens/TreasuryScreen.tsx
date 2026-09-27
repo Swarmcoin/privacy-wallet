@@ -326,6 +326,17 @@ export const TreasuryScreen: React.FC = () => {
     }
   }, [payout]);
 
+  const send = useCallback(async () => {
+    if (!payout.finalHex) return;
+    dispatch({ type: "busy", what: "handing the transaction to the network" });
+    try {
+      const txid = await treasury.broadcast(serverUri, payout.finalHex);
+      dispatch({ type: "broadcast", txid });
+    } catch (error) {
+      dispatch({ type: "problem", message: String(error) });
+    }
+  }, [payout.finalHex, serverUri]);
+
   // -- the second machine ----------------------------------------------------
 
   const fetchIncoming = useCallback(async () => {
@@ -666,14 +677,38 @@ export const TreasuryScreen: React.FC = () => {
 
                   {payout.sessionCode && <SessionCodeCard code={payout.sessionCode} />}
 
-                  {payout.txid && (
+                  {payout.txid && payout.step === "broadcasting" && (
                     <div className={styles.guidance} role="status">
                       <div className={styles.panelTitle}>Combined</div>
                       <div className={styles.mono}>{payout.txid}</div>
                       <div className={styles.fieldNote}>
-                        The script interpreter accepted this transaction. Broadcasting it is the
-                        last step; after that it appears in this wallet&apos;s own view of the
-                        chain like any other payment.
+                        The script interpreter accepted this transaction. Broadcasting is the
+                        last step, and it is the only irreversible one: read the amount and the
+                        recipient on the card once more first.
+                      </div>
+                      <div className={styles.actionRow}>
+                        <button
+                          type="button"
+                          className={`${styles.btn} ${styles.btnPrimary}`}
+                          disabled={!!payout.busy}
+                          onClick={send}
+                        >
+                          Broadcast
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {payout.step === "done" && payout.txid && (
+                    <div className={styles.guidance} role="status">
+                      <div className={styles.panelTitle}>Sent</div>
+                      <div className={styles.mono}>{payout.txid}</div>
+                      <div className={styles.fieldNote}>
+                        The network took it. From here it is a payment like any other: it will
+                        appear in this wallet&apos;s own Activity, with its confirmations, as
+                        soon as the wallet next syncs past the block it lands in. The payout is
+                        shielded, so what Activity shows is the note arriving, not the fund
+                        spending.
                       </div>
                     </div>
                   )}

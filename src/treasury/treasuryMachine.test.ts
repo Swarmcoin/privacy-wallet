@@ -172,6 +172,20 @@ describe("the coordinator's payout", () => {
     expect(shared.sessionCode).toBe("bala dote koba nemi rate vibo");
   });
 
+  it("combining is not sending: the payout waits at broadcasting", () => {
+    const state = run([
+      { type: "fund-chosen", fund },
+      { type: "proposal-built", proposalJson: "{}", summary: summary() },
+      { type: "signature-added", signature: signature() },
+      { type: "signature-added", signature: signature({ fingerprint: "afc5719115ca6481" }) },
+      { type: "combined", txid: "dd".repeat(32), finalHex: "0500beef" },
+    ]);
+    // The one irreversible step is its own press, on its own screen, after
+    // the card has been read once more.
+    expect(state.step).toBe("broadcasting");
+    expect(state.finalHex).toBe("0500beef");
+  });
+
   it("goes from combined to broadcast to done, keeping the txid", () => {
     const ready = run([
       { type: "fund-chosen", fund },

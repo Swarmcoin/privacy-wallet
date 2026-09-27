@@ -17,7 +17,7 @@ use neon::prelude::*;
 use serde::Serialize;
 use swarm_wallet_treasury_core as treasury;
 
-use zingo_netutils::lightwallet_protocol::{GetAddressUtxosArg, TxFilter};
+use zingo_netutils::lightwallet_protocol::{GetAddressUtxosArg, RawTransaction, TxFilter};
 use zingo_netutils::{GrpcIndexer, Indexer, TransparentIndexer};
 
 use crate::ZingolibError;
@@ -197,6 +197,40 @@ fn utxos_from_lightwalletd(
     })
 }
 
+/// Hands a combined transaction to the network.
+///
+/// `SendTransaction` is the same lightwalletd call the wallet's own payments
+/// go out through — a treasury payout is not special to the indexer, and it
+/// must not need a node, an RPC cookie or a second piece of infrastructure
+/// to reach the network.
+///
+/// The txid comes back from the server rather than being assumed from the
+/// one the combiner computed: the two agreeing is worth knowing, and a
+/// rejection arrives here as a message with the node's own reason in it
+/// instead of as a silence the page would have to guess about.
+fn broadcast(server_uri: &str, raw_hex: &str) -> Result<String, ZingolibError> {
+    let uri: http::Uri = server_uri
+        .parse()
+        .map_err(|error| fail("that is not a server address", error))?;
+    let data = hex::decode(raw_hex.trim())
+        .map_err(|error| fail("the combined transaction is not hex", error))?;
+    if data.is_empty() {
+        return Err(refuse("there is no transaction to broadcast"));
+    }
+
+    crate::RT.block_on(async move {
+        let mut indexer = GrpcIndexer::new(uri)
+            .await
+            .map_err(|error| fail("could not reach the indexer", error))?;
+        let txid = indexer
+            .send_transaction(RawTransaction { data, height: 0 }, INDEXER_TIMEOUT)
+            .await
+            .map_err(|error| fail("the network refused the transaction", error))?;
+        serde_json::to_string(&serde_json::json!({ "txid": txid }))
+            .map_err(|error| fail("could not write the broadcast result", error))
+    })
+}
+
 /// Whether the transaction an output came from is a coinbase transaction.
 ///
 /// The lightwalletd UTXO reply does not carry it, and it decides both
@@ -289,6 +323,12 @@ fn js_utxos_from_lightwalletd(mut cx: FunctionContext) -> JsResult<JsPromise> {
     })
 }
 
+fn js_broadcast(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    let server_uri = cx.argument::<JsString>(0)?.value(&mut cx);
+    let raw_hex = cx.argument::<JsString>(1)?.value(&mut cx);
+    crate::spawn_promise(&mut cx, move || broadcast(&server_uri, &raw_hex))
+}
+
 fn js_seal(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let passphrase = cx.argument::<JsString>(0)?.value(&mut cx);
     let plaintext = cx.argument::<JsString>(1)?.value(&mut cx);
@@ -322,6 +362,7 @@ pub(crate) fn register(cx: &mut ModuleContext) -> NeonResult<()> {
     cx.export_function("treasury_proposal_sign", js_proposal_sign)?;
     cx.export_function("treasury_signatures_combine", js_signatures_combine)?;
     cx.export_function("treasury_utxos_from_lightwalletd", js_utxos_from_lightwalletd)?;
+    cx.export_function("treasury_broadcast", js_broadcast)?;
     cx.export_function("treasury_seal", js_seal)?;
     cx.export_function("treasury_unseal", js_unseal)?;
     cx.export_function("treasury_session_id", js_session_id)?;
