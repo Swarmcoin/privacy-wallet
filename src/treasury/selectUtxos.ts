@@ -82,7 +82,11 @@ export function selectionOrder(a: TreasuryUtxo, b: TreasuryUtxo): number {
  * needs its hundred confirmations, and a proposal that spends one early is a
  * proposal the network refuses after two people have signed it.
  */
-export function selectUtxos(utxos: TreasuryUtxo[], requested: number): SelectionResult {
+export function selectUtxos(
+  utxos: TreasuryUtxo[],
+  requested: number,
+  extent?: Pick<TreasuryUtxoSet, "truncated">,
+): SelectionResult {
   if (!Number.isFinite(requested) || requested <= 0) {
     return { ok: false, reason: "Enter how much to pay out." };
   }
@@ -103,6 +107,18 @@ export function selectUtxos(utxos: TreasuryUtxo[], requested: number): Selection
   }
 
   const matureTotal = mature.reduce((sum, u) => sum + u.value, 0);
+  if (matureTotal < requested && extent?.truncated) {
+    // Not "the most this fund can pay": the fund holds more than the page
+    // read (`describeHoldings`), and a payout spends only what was read, so
+    // this is the most one payout can spend.
+    return {
+      ok: false,
+      reason:
+        `This floor cannot be reached in one payout. A payout spends only the outputs read here, ` +
+        `the oldest ${utxos.length}, and the mature ones among them come to ${matureTotal} zat; you asked ` +
+        `for at least ${requested} zat. Pay it out in parts of at most ${matureTotal} zat.`,
+    };
+  }
   if (matureTotal < requested) {
     return {
       ok: false,

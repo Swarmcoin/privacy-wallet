@@ -169,3 +169,35 @@ describe("what a fund holds", () => {
     expect(sentence).not.toContain("not yet spendable");
   });
 });
+
+// The page read at most 200 of the Mining fund's 555 outputs (2026-09-27),
+// and a payout spends only outputs the page read. A floor above what those
+// hold used to be refused as "the most this fund can pay right now", which
+// is false of a fund that holds more: it is the most one payout can spend.
+describe("a floor above what the read outputs hold", () => {
+  const five = 500_000_000;
+  const read = Array.from({ length: 200 }, (_, i) =>
+    utxo({ txid: i.toString(16).padStart(64, "0"), value: five, height: 1000 + i }),
+  );
+
+  it("says it cannot be reached in one payout when the fund holds more", () => {
+    const result = selectUtxos(read, 200 * five + 1, { truncated: true });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("cannot be reached in one payout");
+    expect(result.reason).toContain("the oldest 200");
+    expect(result.reason).toContain(`parts of at most ${200 * five} zat`);
+    expect(result.reason).not.toContain("The most this fund can pay");
+  });
+
+  it("still selects when the read outputs reach the floor", () => {
+    expect(selectUtxos(read, 10 * five, { truncated: true }).ok).toBe(true);
+  });
+
+  it("keeps the old sentence when every output was read", () => {
+    const result = selectUtxos(read.slice(0, 2), 3 * five, { truncated: false });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("The most this fund can pay right now");
+  });
+});

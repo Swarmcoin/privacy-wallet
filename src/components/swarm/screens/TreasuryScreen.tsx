@@ -207,7 +207,7 @@ export const TreasuryScreen: React.FC = () => {
     if (!utxoSet) return null;
     const zat = Math.round(Number(amount) * 100_000_000);
     if (!amount.trim() || !Number.isFinite(zat)) return null;
-    return selectUtxos(utxoSet.utxos, zat);
+    return selectUtxos(utxoSet.utxos, zat, utxoSet);
   }, [utxoSet, amount]);
 
   // -- actions ---------------------------------------------------------------
