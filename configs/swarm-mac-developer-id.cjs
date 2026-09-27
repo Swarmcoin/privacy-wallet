@@ -17,6 +17,10 @@ const artifactName = "SWARM-Wallet-${version}-mac-${arch}.${ext}";
 module.exports = {
   ...base,
   directories: { ...base.directories, output: arch === "x64" ? "dist-mac-signed-x64" : "dist-mac-signed" },
+  // Without this, electron-builder answers an identity it cannot find by
+  // signing an arm64 app ad hoc and carrying on — the signature Gatekeeper
+  // reports as "damaged". A distribution build must stop instead.
+  forceCodeSigning: true,
   afterSign: "./scripts/verify-mac-signed-app.cjs",
   mac: {
     ...base.mac,
@@ -29,6 +33,10 @@ module.exports = {
     gatekeeperAssess: true,
     entitlements: "./configs/entitlements.swarm-mac.plist",
     entitlementsInherit: "./configs/entitlements.swarm-mac.plist",
+    // @electron/osx-sign already signs every binary file it finds in the
+    // bundle (native.node, keytar.node, the Electron frameworks and helpers);
+    // the helper is named as well so it can never be skipped. The afterSign
+    // hook checks every Mach-O in the bundle, not just these.
     binaries: ["Contents/Resources/nym-proxy"],
     notarize: true,
   },

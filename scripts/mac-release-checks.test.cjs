@@ -210,6 +210,93 @@ test("a native module left over from the other architecture is named before pack
   assert.match(wrong[1], /unreadable/);
 });
 
+const DEVELOPER_ID = [
+  "Executable=/tmp/dist-mac-signed/mac-arm64/SWARM Wallet.app/Contents/MacOS/SWARM Wallet",
+  "Identifier=green.swarm.wallet",
+  "Format=app bundle with Mach-O thin (arm64)",
+  "CodeDirectory v=20500 size=1234 flags=0x10000(runtime) hashes=27+7 location=embedded",
+  "Signature size=9039",
+  "Authority=Developer ID Application: Example Holder (ABCDE12345)",
+  "Authority=Developer ID Certification Authority",
+  "Authority=Apple Root CA",
+  "Timestamp=27 Sep 2026 at 22:10:05",
+  "Notarization Ticket=stapled",
+  "TeamIdentifier=ABCDE12345",
+  "Runtime Version=26.0.0",
+  "Sealed Resources version=2 rules=13 files=120",
+].join("\n");
+
+// What the CI "unsigned test" arm64 app carries: Electron's linker signature,
+// invalidated once the bundle is renamed and its Info.plist rewritten.
+const AD_HOC = [
+  "Executable=/Volumes/SWARM Wallet/SWARM Wallet.app/Contents/MacOS/SWARM Wallet",
+  "Identifier=Electron",
+  "Format=app bundle with Mach-O thin (arm64)",
+  "CodeDirectory v=20400 size=1234 flags=0x20002(adhoc,linker-signed) hashes=33+0 location=embedded",
+  "Signature=adhoc",
+  "Info.plist=not bound",
+  "TeamIdentifier=not set",
+  "Sealed Resources=none",
+].join("\n");
+
+test("a Developer ID signature with timestamp and hardened runtime passes", () => {
+  const details = checks.parseCodesignDetails(DEVELOPER_ID);
+  assert.equal(details.identifier, "green.swarm.wallet");
+  assert.equal(details.teamIdentifier, "ABCDE12345");
+  assert.equal(details.runtime, true);
+  assert.equal(details.adhoc, false);
+  assert.deepEqual(checks.signatureProblems(details, { team: "ABCDE12345", executable: true }), []);
+});
+
+test("the CI build's ad hoc signature is refused on every count", () => {
+  const problems = checks.signatureProblems(checks.parseCodesignDetails(AD_HOC), { team: "ABCDE12345", executable: true });
+  assert.deepEqual(problems, [
+    "only the linker's ad hoc signature",
+    "no Developer ID Application authority (none)",
+    "no team identifier",
+    "no secure timestamp",
+    "no hardened runtime",
+  ]);
+});
+
+test("another team, a missing timestamp or a missing runtime is named", () => {
+  const otherTeam = checks.parseCodesignDetails(DEVELOPER_ID.replace("TeamIdentifier=ABCDE12345", "TeamIdentifier=ZZZZZ99999"));
+  assert.deepEqual(checks.signatureProblems(otherTeam, { team: "ABCDE12345", executable: false }), ["team ZZZZZ99999, not the app's ABCDE12345"]);
+
+  const untimed = checks.parseCodesignDetails(DEVELOPER_ID.replace(/^Timestamp=.*$/m, "Signed Time=27 Sep 2026 at 22:10:05"));
+  assert.deepEqual(checks.signatureProblems(untimed, { team: "ABCDE12345", executable: false }), ["no secure timestamp"]);
+
+  const library = checks.parseCodesignDetails(DEVELOPER_ID.replace("flags=0x10000(runtime)", "flags=0x0(none)"));
+  assert.deepEqual(checks.signatureProblems(library, { team: "ABCDE12345", executable: false }), []);
+  assert.deepEqual(checks.signatureProblems(library, { team: "ABCDE12345", executable: true }), ["no hardened runtime"]);
+
+  const development = checks.parseCodesignDetails(DEVELOPER_ID.replace("Developer ID Application:", "Apple Development:"));
+  assert.match(checks.signatureProblems(development, { team: "ABCDE12345", executable: true })[0], /no Developer ID Application authority/);
+});
+
+test("the packaged identity must be the selected profile's", () => {
+  const file = JSON.parse(HEAD_PROFILE);
+  const identity = file.profiles[OTHER];
+  const plist = {
+    CFBundleIdentifier: identity.appId,
+    CFBundleShortVersionString: identity.version,
+    CFBundleExecutable: identity.executableName,
+  };
+  const packaged = { swarmNetworkProfile: OTHER, version: identity.version, name: identity.packageName };
+  assert.deepEqual(checks.packagedIdentityProblems({ plist, packaged, identity, profile: OTHER }), []);
+
+  const other = file.profiles[HEAD_SELECTS];
+  const wrong = checks.packagedIdentityProblems({
+    plist: { ...plist, CFBundleIdentifier: other.appId },
+    packaged: { ...packaged, swarmNetworkProfile: HEAD_SELECTS },
+    identity,
+    profile: OTHER,
+  });
+  assert.equal(wrong.length, 2);
+  assert.match(wrong.join("\n"), /CFBundleIdentifier/);
+  assert.match(wrong.join("\n"), /swarmNetworkProfile/);
+});
+
 test("Mac release files are named per platform and never take the Windows zip's name", () => {
   assert.deepEqual(checks.releaseFileNames("0.1.0-mainnet.6", "x64"), {
     dmg: "SWARM-Wallet-0.1.0-mainnet.6-mac-x64.dmg",
@@ -250,9 +337,10 @@ function developerIdConfig(arch) {
   }
 }
 
-test("the Developer ID config names files as the script expects", () => {
+test("the Developer ID config signs for distribution and names files as the script expects", () => {
   for (const arch of ["arm64", "x64"]) {
     const config = developerIdConfig(arch);
+    assert.equal(config.forceCodeSigning, true);
     assert.equal(config.afterSign, "./scripts/verify-mac-signed-app.cjs");
     assert.equal(config.mac.identity, "Example Holder (ABCDE12345)");
     assert.equal(config.mac.hardenedRuntime, true);

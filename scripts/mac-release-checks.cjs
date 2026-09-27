@@ -21,6 +21,15 @@
 //    src/buildProfile.json into the renderer, and electron-builder reads it
 //    again when it names and stamps the package. A profile selected after the
 //    frontend was built packages a mainnet app around a testnet renderer.
+//
+// 3. WHAT A DEVELOPER ID SIGNATURE LOOKS LIKE in `codesign -dv --verbose=4`,
+//    for every Mach-O the wallet ships: not ad hoc (the CI build's arm64
+//    signature, which Gatekeeper reports as damaged), a Developer ID Application
+//    authority, the outer app's team, a secure timestamp, and the hardened
+//    runtime on every executable — what notarization requires of each file.
+//
+// 4. WHETHER THE PACKAGE IS THE ONE THE PROFILE DESCRIBES: Info.plist and the
+//    packaged package.json against src/buildProfile.json.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -165,6 +174,58 @@ function architectureProblems(expected, archsByFile) {
     .map(([file, archs]) => `${file} is ${archs.trim() || "unreadable"}, not ${expected}; rebuild it for this architecture`);
 }
 
+/** The fields of `codesign -dv --verbose=4` (written to stderr) that decide distribution. */
+function parseCodesignDetails(text) {
+  const lines = text.split(/\r?\n/);
+  const value = (key) => {
+    const line = lines.find((l) => l.startsWith(`${key}=`));
+    return line === undefined ? null : line.slice(key.length + 1);
+  };
+  const codeDirectory = lines.find((l) => l.startsWith("CodeDirectory ")) || "";
+  const flags = (codeDirectory.match(/flags=0x[0-9a-f]+\(([^)]*)\)/i) || [null, ""])[1].split(",").filter(Boolean);
+  return {
+    identifier: value("Identifier"),
+    authorities: lines.filter((l) => l.startsWith("Authority=")).map((l) => l.slice("Authority=".length)),
+    teamIdentifier: value("TeamIdentifier"),
+    adhoc: value("Signature") === "adhoc" || flags.includes("adhoc"),
+    linkerSigned: flags.includes("linker-signed"),
+    runtime: flags.includes("runtime"),
+    timestamp: value("Timestamp"),
+  };
+}
+
+/** Why a signature is not a Developer ID distribution signature; empty when it is. */
+function signatureProblems(details, { team, executable }) {
+  const problems = [];
+  if (details.adhoc) problems.push(details.linkerSigned ? "only the linker's ad hoc signature" : "an ad hoc signature");
+  if (!details.authorities[0] || !details.authorities[0].startsWith("Developer ID Application:")) {
+    problems.push(`no Developer ID Application authority (${details.authorities[0] || "none"})`);
+  }
+  if (!details.teamIdentifier || details.teamIdentifier === "not set") {
+    problems.push("no team identifier");
+  } else if (team && details.teamIdentifier !== team) {
+    problems.push(`team ${details.teamIdentifier}, not the app's ${team}`);
+  }
+  if (!details.timestamp) problems.push("no secure timestamp");
+  if (executable && !details.runtime) problems.push("no hardened runtime");
+  return problems;
+}
+
+/** Whether the packaged app is the one src/buildProfile.json describes. */
+function packagedIdentityProblems({ plist, packaged, identity, profile }) {
+  const problems = [];
+  const expect = (what, actual, wanted) => {
+    if (actual !== wanted) problems.push(`${what} is ${JSON.stringify(actual)}, not ${JSON.stringify(wanted)}`);
+  };
+  expect("Info.plist CFBundleIdentifier", plist.CFBundleIdentifier, identity.appId);
+  expect("Info.plist CFBundleShortVersionString", plist.CFBundleShortVersionString, identity.version);
+  expect("Info.plist CFBundleExecutable", plist.CFBundleExecutable, identity.executableName);
+  expect("the packaged package.json swarmNetworkProfile", packaged.swarmNetworkProfile, profile);
+  expect("the packaged package.json version", packaged.version, identity.version);
+  expect("the packaged package.json name", packaged.name, identity.packageName);
+  return problems;
+}
+
 /** The release file names, one set per architecture, so they never collide with another platform's. */
 function releaseFileNames(version, arch) {
   if (!["arm64", "x64"].includes(arch)) throw new Error(`Unsupported Mac architecture: ${arch}`);
@@ -186,6 +247,9 @@ module.exports = {
   describeSourceTree,
   frontendProblems,
   architectureProblems,
+  parseCodesignDetails,
+  signatureProblems,
+  packagedIdentityProblems,
   releaseFileNames,
 };
 
