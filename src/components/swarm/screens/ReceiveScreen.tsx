@@ -6,6 +6,7 @@ import { ContextApp } from "../../../context/ContextAppState";
 import { useCopy } from "../../common/useCopy";
 import { SWARM_TICKER } from "../../../utils/swarmNetwork";
 import { checkAddressForChain } from "../../../utils/swarmAddress";
+import { incomingUnconfirmed } from "../swarmModel";
 
 /**
  * Receive: the two addresses this wallet can be paid at, side by side, and
@@ -101,7 +102,9 @@ export const ReceiveScreen: React.FC = () => {
   const unified = addressesUnified?.[0]?.encoded_address;
   const transparent = addressesTransparent?.[0]?.encoded_address;
 
-  const incoming = (valueTransfers ?? []).filter((vt) => vt.confirmations === 0 && vt.type === "received");
+  // Not every zero-confirmation receipt: a failed one (a reward lost to a
+  // fork among them) has zero confirmations too, and is not on its way.
+  const incoming = incomingUnconfirmed(valueTransfers);
 
   return (
     <>
