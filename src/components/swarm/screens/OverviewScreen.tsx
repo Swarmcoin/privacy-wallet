@@ -8,7 +8,7 @@ import { ActivityList } from "../components/ActivityList";
 import { ContextApp } from "../../../context/ContextAppState";
 import routes from "../../../constants/routes.json";
 import SwarmMark from "../../logo/SwarmMark";
-import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
+import { SWARM_TICKER, addressPlaceholderFor, balanceNoteFor, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 import { ZcashURITarget } from "../../../utils/uris";
 
 /**
@@ -18,9 +18,11 @@ import { ZcashURITarget } from "../../../utils/uris";
  * Three things the mockup shows are not here, and each is a claim this
  * network cannot support:
  *
- *   - the fiat line ("≈ $9,364.10 USD"). These are test coins. There is no
- *     market and no price, so the slot says so rather than printing a number
- *     that would be false the moment anyone believed it.
+ *   - the fiat line ("≈ $9,364.10 USD"). This wallet has no price feed, so
+ *     the slot says so rather than printing a number that would be false the
+ *     moment anyone believed it — and on the test network it says the coins
+ *     are test coins, which is true there and nowhere else
+ *     (`balanceNoteFor`).
  *   - "42 peers". A light wallet has no peers. It talks to one indexer, and
  *     the rail names that indexer and the block height it reported instead.
  *   - the fourth card, "ON-CHAIN VIEW — what others can see". A single number
@@ -85,7 +87,7 @@ export const OverviewScreen: React.FC = () => {
           <div className={styles.balanceValue}>
             {show(balances.total)} <span className={styles.balanceTicker}>{SWARM_TICKER}</span>
           </div>
-          <div className={styles.balanceNote}>test coins · no market value</div>
+          <div className={styles.balanceNote}>{balanceNoteFor(profile)}</div>
           <div className={styles.actionRow}>
             <button
               type="button"
@@ -208,7 +210,7 @@ export const OverviewScreen: React.FC = () => {
               className={styles.input}
               value={quickTo}
               spellCheck={false}
-              placeholder="swarm1…, utest1… or tm…"
+              placeholder={addressPlaceholderFor(profile)}
               onChange={(e) => setQuickTo(e.target.value)}
               disabled={!canSend}
             />

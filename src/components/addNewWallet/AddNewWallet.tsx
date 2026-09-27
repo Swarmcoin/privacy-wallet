@@ -19,8 +19,9 @@ import {
   SWARM_ACTIVATION_HEIGHT,
   SWARM_CHAIN,
   SWARM_NO_AUTOMATIC_REASON,
-  SWARM_SERVER_PRESETS,
   isSwarmChain,
+  profilesForNewWallets,
+  serverPresetsForNewWallets,
   swarmDefaultServerFor,
   swarmPresetFor,
   swarmPresetsForChain,
@@ -30,7 +31,9 @@ import {
   SWARM_MAINNET_PROFILE,
   SWARM_NETWORK_PROFILES,
   SWARM_TESTNET_PROFILE,
+  SwarmProfileIdEnum,
   nativeChainHint,
+  swarmProfileFor,
 } from "../../utils/networkProfiles";
 import { ServerIdentity, checkServerIdentityForChain } from "../../utils/serverIdentity";
 import { native, ipcRenderer } from "../../electronBridge";
@@ -314,10 +317,17 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
       // 2026-09-26 ended up creating an upstream Zcash wallet, so the label is
       // read through this: anything that is not a SWARM network lands on the
       // network THIS BUILD is for.
+      //
+      // A new wallet also lands only on a network this build offers new
+      // wallets on (`profilesForNewWallets`): a mainnet build whose open
+      // wallet is an older testnet one must not start its create screen on
+      // the testnet, with no option in the picker to show for it.
       const storedChain = currChain || "";
-      const safeChain: ServerChainNameEnum = isSwarmChain(storedChain)
-        ? (storedChain as ServerChainNameEnum)
-        : SWARM_CHAIN;
+      const offeredForNew = profilesForNewWallets().some((p) => p.chainLabel === storedChain);
+      const safeChain: ServerChainNameEnum =
+        isSwarmChain(storedChain) && (mode !== "addnew" || offeredForNew)
+          ? (storedChain as ServerChainNameEnum)
+          : SWARM_CHAIN;
       const safeServer = currServer || "";
       const safeSelection = currSelection || "";
       setSelectedChain(safeChain);
@@ -885,10 +895,11 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
       // 2026-09-26. It is refused rather than corrected, because silently
       // moving someone's wallet to a different chain is its own surprise.
       if (!isSwarmChain(selectedChain)) {
+        const offered = profilesForNewWallets().map((profile) => profile.displayName);
         openErrorModal(
           title,
           `"${selectedChain}" is not a SWARM network. This wallet only creates wallets on ` +
-            `${SWARM_MAINNET_PROFILE.displayName} or ${SWARM_TESTNET_PROFILE.displayName}; choose one of them.`,
+            `${offered.join(" or ")}; choose ${offered.length === 1 ? "it" : "one of them"}.`,
         );
         isSubmittingRef.current = false;
         return;
@@ -1139,8 +1150,25 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
                   them, `createNextWallet` refuses them, and the wallet is not
                   a Zcash wallet by any route a person can walk.
                 */}
-                <option value="swarm-mainnet">{SWARM_MAINNET_PROFILE.displayName}</option>
-                <option value="swarm-testnet">{SWARM_TESTNET_PROFILE.displayName} — coins have no value</option>
+                {/*
+                  Which of the two this build offers is `profilesForNewWallets`:
+                  a mainnet build offers SWARM Mainnet alone. The wallet's own
+                  network is always listed, so the settings and delete screens
+                  of a wallet made on the other one still name it.
+                */}
+                {SWARM_NETWORK_PROFILES.filter(
+                  (profile) => profilesForNewWallets().includes(profile) || swarmProfileFor(selectedChain) === profile,
+                )
+                  .sort((a, b) =>
+                    a.id === SwarmProfileIdEnum.mainnet ? -1 : b.id === SwarmProfileIdEnum.mainnet ? 1 : 0,
+                  )
+                  .map((profile) => (
+                    <option key={profile.id} value={profile.chainLabel}>
+                      {profile.id === SwarmProfileIdEnum.testnet
+                        ? `${SWARM_TESTNET_PROFILE.displayName} — coins have no value`
+                        : SWARM_MAINNET_PROFILE.displayName}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
@@ -1362,7 +1390,7 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
                             chooseSwarmServer(uri);
                           }}
                         >
-                          {(mode === "addnew" ? SWARM_SERVER_PRESETS : swarmPresetsForChain(selectedChain)).map(
+                          {(mode === "addnew" ? serverPresetsForNewWallets() : swarmPresetsForChain(selectedChain)).map(
                             (preset) => (
                               <option key={preset.uri} value={preset.uri}>
                                 {`${preset.label} — ${preset.uri}`}

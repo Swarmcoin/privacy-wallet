@@ -17,7 +17,7 @@ import {
   calculateSpendable,
   trimSpendable,
 } from "../../send/components/sendPipeline";
-import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
+import { SWARM_TICKER, addressPlaceholderFor, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 
 /**
  * Send, as the mockup lays it out: the payment on the left, what it will cost
@@ -35,7 +35,7 @@ import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork"
  *   - the Slow / Normal / Fast fee picker. This chain's fee is fixed by
  *     ZIP 317 and the wallet quotes it; three speeds to choose between would
  *     be three prices that do not exist.
- *   - "≈ $187.60 USD". Test coins, no market, no price.
+ *   - "≈ $187.60 USD". This wallet has no price feed.
  */
 
 type SendScreenProps = {
@@ -222,7 +222,7 @@ export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSend
                 className={styles.input}
                 value={to}
                 spellCheck={false}
-                placeholder="swarm1…, utest1… or tm…"
+                placeholder={addressPlaceholderFor(profile)}
                 onChange={(e) => setTo(e.target.value)}
                 disabled={readOnly}
                 aria-describedby="swarm-send-to-status"
