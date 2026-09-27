@@ -146,7 +146,7 @@ jobs:
       # native call the preload never exposes is otherwise first found in a
       # package.
       - name: Check the treasury custody surface
-        run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/components/swarm/screens/TreasuryScreen.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
       - name: Build the pinned wallet SDK adapter
         run: yarn ${{ matrix.platform == 'linux' && 'neon' || (matrix.arch == 'arm64' && 'neon-mac-arm64' || 'neon-mac-x64') }}
       - name: Verify native prefix compatibility

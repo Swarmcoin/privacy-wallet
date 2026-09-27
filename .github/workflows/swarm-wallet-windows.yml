@@ -114,7 +114,7 @@ jobs:
       # the signer-file picker threw "mainWindow is not defined") or a native
       # call the preload never exposes is otherwise first found in a package.
       - name: Check the treasury custody surface
-        run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/components/swarm/screens/TreasuryScreen.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
       - name: Verify network, endpoint and server-selection boundaries
         run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx
       - name: Build the pinned wallet SDK adapter

@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useReducer, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import styles from "../Swarm.module.css";
 import { SwarmIcon } from "../SwarmIcons";
 import { ContextApp } from "../../../context/ContextAppState";
@@ -147,19 +147,57 @@ export const TreasuryScreen: React.FC = () => {
     };
   }, [refreshSigners]);
 
+  /**
+   * Which fund the payout panel is on, as of the last choice.
+   *
+   * A ref, not `payout.fund`: the callbacks that need it run in the very
+   * event that made the choice, and a callback reads `payout` from the render
+   * it was made in, which had not seen the choice yet. Reading it from there
+   * is how "New payout" once waited for ever on "asking the indexer": the
+   * answer came back, was compared with the fund before the click, and was
+   * dropped.
+   */
+  const payoutFundName = useRef<string | null>(null);
+
+  /** Asks the indexer what a fund holds, for the Funds tab, and answers it or why not. */
   const loadBalance = useCallback(
-    async (fund: LoadedFund) => {
-      if (!serverUri) return;
+    async (fund: LoadedFund): Promise<TreasuryUtxoSet | string> => {
+      if (!serverUri) return "This wallet has no server to ask what the fund holds.";
       setBalances((prev) => ({ ...prev, [fund.name]: "asking the indexer…" }));
       try {
         const set = await treasury.loadFundUtxos(serverUri, fund);
         setBalances((prev) => ({ ...prev, [fund.name]: set }));
-        if (payout.fund?.name === fund.name) dispatch({ type: "utxos-loaded", utxos: set });
+        return set;
       } catch (error) {
         setBalances((prev) => ({ ...prev, [fund.name]: String(error) }));
+        return String(error);
       }
     },
-    [serverUri, payout.fund],
+    [serverUri],
+  );
+
+  /** The Funds tab's Refresh: the payout gets the fresh outputs too, if it is on that fund. */
+  const refreshFund = useCallback(
+    async (fund: LoadedFund) => {
+      const answer = await loadBalance(fund);
+      if (typeof answer !== "string" && payoutFundName.current === fund.name) {
+        dispatch({ type: "utxos-loaded", utxos: answer });
+      }
+    },
+    [loadBalance],
+  );
+
+  /** Loads a fund's outputs into the payout panel, or says there why it could not. */
+  const loadPayoutOutputs = useCallback(
+    async (fund: LoadedFund) => {
+      dispatch({ type: "busy", what: "asking the indexer what this fund holds" });
+      const answer = await loadBalance(fund);
+      // The payout may have moved to another fund while the indexer answered.
+      if (payoutFundName.current !== fund.name) return;
+      if (typeof answer === "string") dispatch({ type: "problem", message: answer });
+      else dispatch({ type: "utxos-loaded", utxos: answer });
+    },
+    [loadBalance],
   );
 
   // -- the selection, recomputed as the amount is typed ---------------------
@@ -176,17 +214,17 @@ export const TreasuryScreen: React.FC = () => {
 
   const chooseFund = useCallback(
     async (fund: LoadedFund) => {
+      payoutFundName.current = fund.name;
       dispatch({ type: "fund-chosen", fund });
       setTab("payout");
       const known = balances[fund.name];
       if (known && typeof known !== "string") {
         dispatch({ type: "utxos-loaded", utxos: known });
       } else {
-        dispatch({ type: "busy", what: "asking the indexer what this fund holds" });
-        await loadBalance(fund);
+        await loadPayoutOutputs(fund);
       }
     },
-    [balances, loadBalance],
+    [balances, loadPayoutOutputs],
   );
 
   const build = useCallback(async () => {
@@ -503,7 +541,7 @@ export const TreasuryScreen: React.FC = () => {
           funds={funds}
           problems={policyProblems}
           balances={balances}
-          onRefresh={loadBalance}
+          onRefresh={refreshFund}
           onPayout={chooseFund}
         />
       )}
@@ -609,7 +647,7 @@ export const TreasuryScreen: React.FC = () => {
                     <button
                       type="button"
                       className={styles.btn}
-                      onClick={() => payout.fund && loadBalance(payout.fund as LoadedFund)}
+                      onClick={() => payout.fund && loadPayoutOutputs(payout.fund as LoadedFund)}
                     >
                       Refresh outputs
                     </button>
