@@ -1341,6 +1341,11 @@ ipcMain.handle("treasury:policies", async () => {
 });
 
 ipcMain.handle("treasury:pick-signer-file", async () => {
+  // The window has to be looked up here, as every other dialog handler in this
+  // file does. `mainWindow` is a local of `createWindow`, not a module
+  // binding: reading it from here threw "mainWindow is not defined" and the
+  // Register-a-signer button could not open a picker at all.
+  const mainWindow = BrowserWindow.getAllWindows()[0] ?? null;
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: "Choose this machine's signer file",
     properties: ["openFile"],
