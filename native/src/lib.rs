@@ -1643,106 +1643,237 @@ fn wallet_kind(mut cx: FunctionContext) -> JsResult<JsPromise> {
     spawn_promise(&mut cx, wallet_kind_string)
 }
 
+/// Every chain profile `parse_address` reads an address against, in the order
+/// the first match is reported.
+///
+/// Until 0.1.0-mainnet.6 this list was Zcash Mainnet, Zcash Testnet and
+/// regtest only. `ChainType::SwarmMainnet` and `ChainType::CustomTestnet`
+/// were never tried, so on SWARM production every `swm1…`, `s1…` and `s3…`
+/// address, the wallet's own included, came back "Invalid address", and
+/// `Utils.getAddressKind` (Send, the address book, payment links) refused
+/// every recipient. The same fix as the SDK's zingo-cli at privacy-zingolib
+/// c7464d2e and as swarm-pay's copy of this crate (2026-09-27).
+fn address_chain_profiles() -> [ChainType; 5] {
+    [
+        ChainType::Mainnet,
+        // Decoding reads the chain's network type and never the genesis hash a
+        // `SwarmMainnet` carries, so the all-zero hash stands in: "is this a
+        // SWARM production address" has one answer for every production chain.
+        ChainType::SwarmMainnet(
+            zingolib::config::SwarmMainnetGenesis::from_display_hex(&"0".repeat(64))
+                .expect("64 zeros is a well-formed display-order hash"),
+        ),
+        ChainType::Testnet,
+        ChainType::CustomTestnet,
+        ChainType::Regtest(ActivationHeights::default()),
+    ]
+}
+
+/// The name `parse_address` reports for a chain profile: the same strings
+/// the renderer's `ServerChainNameEnum` uses.
+fn address_chain_name(chain: &ChainType) -> &'static str {
+    match chain {
+        ChainType::Mainnet => "main",
+        ChainType::Testnet => "test",
+        ChainType::Regtest(_) => "regtest",
+        ChainType::CustomTestnet => zingolib::config::SWARM_TESTNET_NAME,
+        ChainType::SwarmMainnet(_) => zingolib::config::SWARM_MAINNET_NAME,
+    }
+}
+
+/// The answer `parse_address` gives, as JSON. Split out so it can be tested
+/// without a Node context.
+///
+/// `chain_name` is the first profile the string decodes on, so a
+/// SwarmTestnet address still reports `test` (the vendored protocol crate's
+/// TESTNET constants carry SwarmTestnet's HRPs, and the renderer aliases the
+/// two on purpose). `valid_on` is every profile it decodes on.
+fn parse_address_json(address: &str) -> json::JsonValue {
+    let invalid = || {
+        // Empty and undecodable input are reported with the same structured
+        // status, never as error prose.
+        object! {
+            "status" => "Invalid address",
+            "chain_name" => json::JsonValue::Null,
+            "valid_on" => json::JsonValue::Array(Vec::new()),
+            "address_kind" => json::JsonValue::Null,
+        }
+    };
+    if address.is_empty() {
+        return invalid();
+    }
+    let profiles = address_chain_profiles();
+    let valid_on: Vec<&'static str> = profiles
+        .iter()
+        .filter(|chain| Address::decode(*chain, address).is_some())
+        .map(address_chain_name)
+        .collect();
+    let Some((recipient_address, chain)) = profiles
+        .iter()
+        .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
+    else {
+        return invalid();
+    };
+    let chain_name = address_chain_name(&chain);
+    match recipient_address {
+        Address::Sapling(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "valid_on" => valid_on,
+            "address_kind" => "sapling",
+        },
+        Address::Transparent(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "valid_on" => valid_on,
+            "address_kind" => "transparent",
+        },
+        Address::Tex(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "valid_on" => valid_on,
+            "address_kind" => "tex",
+        },
+        Address::Unified(ua) => {
+            let mut receivers_available = vec![];
+            if ua.sapling().is_some() {
+                receivers_available.push("sapling")
+            }
+            if ua.transparent().is_some() {
+                receivers_available.push("transparent")
+            }
+            if ua.orchard().is_some() {
+                receivers_available.push("orchard");
+                object! {
+                    "status" => "success",
+                    "chain_name" => chain_name,
+                    "valid_on" => valid_on,
+                    "address_kind" => "unified",
+                    "receivers_available" => receivers_available,
+                    "only_orchard_ua" => zcash_keys::address::UnifiedAddress::from_receivers(ua.orchard().cloned(), None, None).expect("To construct UA").encode(&chain),
+                }
+            } else {
+                object! {
+                    "status" => "success",
+                    "chain_name" => chain_name,
+                    "valid_on" => valid_on,
+                    "address_kind" => "unified",
+                    "receivers_available" => receivers_available,
+                }
+            }
+        }
+    }
+}
+
 fn parse_address(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let address = cx.argument::<JsString>(0)?.value(&mut cx);
 
     spawn_promise(&mut cx, move || -> Result<String, ZingolibError> {
-        with_panic_guard(|| {
-            if address.is_empty() {
-                // Empty input is invalid; report it with the same structured
-                // status the decode-failure path uses, never as error prose.
-                Ok(object! {
-                    "status" => "Invalid address",
-                    "chain_name" => json::JsonValue::Null,
-                    "address_kind" => json::JsonValue::Null,
-                }
-                .pretty(2))
-            } else {
-                fn make_decoded_chain_pair(
-                    address: &str,
-                ) -> Option<(zcash_client_backend::address::Address, ChainType)> {
-                    [
-                        ChainType::Mainnet,
-                        ChainType::Testnet,
-                        ChainType::Regtest(ActivationHeights::default()),
-                    ]
-                    .iter()
-                    .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
-                }
-                if let Some((recipient_address, chain_name)) = make_decoded_chain_pair(&address) {
-                    let chain_name_string = match chain_name {
-                        ChainType::Mainnet => "main",
-                        ChainType::Testnet => "test",
-                        ChainType::Regtest(_) => "regtest",
-                        ChainType::CustomTestnet => "swarm-testnet",
-                        // Unreachable: `make_decoded_chain_pair` above tries
-                        // three chains and this is not one of them, because
-                        // building it needs a genesis hash that an address
-                        // string does not carry. The arm exists so that the
-                        // match stays exhaustive over `ChainType` rather than
-                        // being closed with a wildcard that would quietly
-                        // mislabel a future variant.
-                        ChainType::SwarmMainnet(_) => "swarm-mainnet",
-                    };
-                    match recipient_address {
-                        Address::Sapling(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "sapling",
-                        }
-                        .pretty(2)),
-                        Address::Transparent(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "transparent",
-                        }
-                        .pretty(2)),
-                        Address::Tex(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "tex",
-                        }
-                        .pretty(2)),
-                        Address::Unified(ua) => {
-                            let mut receivers_available = vec![];
-                            if ua.sapling().is_some() {
-                                receivers_available.push("sapling")
-                            }
-                            if ua.transparent().is_some() {
-                                receivers_available.push("transparent")
-                            }
-                            if ua.orchard().is_some() {
-                                receivers_available.push("orchard");
-                                Ok(object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                    "only_orchard_ua" => zcash_keys::address::UnifiedAddress::from_receivers(ua.orchard().cloned(), None, None).expect("To construct UA").encode(&chain_name),
-                                }
-                                .pretty(2))
-                            } else {
-                                Ok(object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                }
-                                .pretty(2))
-                            }
-                        }
-                    }
-                } else {
-                    Ok(object! {
-                        "status" => "Invalid address",
-                        "chain_name" => json::JsonValue::Null,
-                        "address_kind" => json::JsonValue::Null,
-                    }
-                    .pretty(2))
-                }
-            }
-        })
+        with_panic_guard(|| Ok(parse_address_json(&address).pretty(2)))
     })
+}
+
+#[cfg(test)]
+mod swarm_address_parsing {
+    //! `parse_address` against the SWARM chains.
+    //!
+    //! The transparent vectors are the SDK's own, from zingo-cli's
+    //! `swarm_address_parsing` tests at privacy-zingolib c7464d2e. The unified
+    //! vectors are a live SwarmTestnet address and the same receivers encoded
+    //! for SWARM production (both from swarm-pay's copy of this test, so both
+    //! spellings carry real curve points), and the FUEL payout address and the
+    //! Core fund's P2SH address, which are live on SWARM production.
+
+    use super::parse_address_json;
+    use zcash_address::unified::{Address as UnifiedAddress, Encoding};
+    use zcash_protocol::consensus::NetworkType;
+
+    const SWARM_MAIN_P2PKH: &str = "s1MCkDhVejM4RqDyRR1rEJkudd26FVWipPD";
+    const SWARM_MAIN_P2SH: &str = "s3Mtm9Ez6HFNovPfrY7WpjPGZmYNxztrxbb";
+    /// The Core fund's 2-of-3 address, as shipped in resources/treasury.
+    const CORE_FUND_P2SH: &str = "s3fLmEHc1xqs8KAe7QS7oupkhuGDjidV4eq";
+    /// The FUEL payout address on SWARM production.
+    const FUEL_PAYOUT_UA: &str = "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+    const SWARM_TESTNET_P2SH: &str = "t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n";
+    const ZCASH_MAIN_P2PKH: &str = "t1dRJRY7GmyeykJnMH38mdQoaZtFhn1QmGz";
+    const SWARM_TESTNET_UA: &str = "swarm1lpaw72xqh05uneatpyrn3etsae82v6vmvapu0jrwg48awww24v7u9mjvf3znqlu9jtqzqgjuyw03w9emm7wvf5rc5dpdyu5zsy334vah";
+    /// `SWARM_TESTNET_UA`'s receivers, encoded for the SWARM production network.
+    const SWARM_MAIN_UA: &str = "swm1dteaukytcr5m9zq0s9wrw9h4u7w50r2zp6swlgj7zlpdc05jp63yp895zkadnfuaydxs57xtm55y2zvwu56h5q6l8ewfkxd775x2k727";
+
+    fn valid_on(answer: &json::JsonValue) -> Vec<String> {
+        answer["valid_on"]
+            .members()
+            .map(|name| name.as_str().expect("a chain name is a string").to_string())
+            .collect()
+    }
+
+    #[test]
+    fn the_production_vector_is_the_testnet_receivers() {
+        let (network, ua) = UnifiedAddress::decode(SWARM_TESTNET_UA).expect("the live SwarmTestnet address decodes");
+        assert_eq!(network, NetworkType::Test);
+        assert_eq!(ua.encode(&NetworkType::SwarmMain), SWARM_MAIN_UA);
+    }
+
+    #[test]
+    fn swarm_production_addresses_are_recognised() {
+        for (address, kind) in [
+            (SWARM_MAIN_P2PKH, "transparent"),
+            (SWARM_MAIN_P2SH, "transparent"),
+            (CORE_FUND_P2SH, "transparent"),
+            (SWARM_MAIN_UA, "unified"),
+            (FUEL_PAYOUT_UA, "unified"),
+        ] {
+            let answer = parse_address_json(address);
+            assert_eq!(answer["status"].as_str(), Some("success"), "{address}: {answer}");
+            assert_eq!(answer["chain_name"].as_str(), Some("swarm-mainnet"), "{address}: {answer}");
+            assert_eq!(answer["address_kind"].as_str(), Some(kind), "{address}: {answer}");
+            assert_eq!(valid_on(&answer), vec!["swarm-mainnet".to_string()], "{address}");
+        }
+    }
+
+    #[test]
+    fn nothing_from_another_network_is_accepted_as_swarm_production() {
+        // A SwarmTestnet address and a Zcash address both decode, but never on
+        // SWARM production, so a production wallet's chain check refuses them.
+        for address in [SWARM_TESTNET_UA, SWARM_TESTNET_P2SH, ZCASH_MAIN_P2PKH] {
+            let answer = parse_address_json(address);
+            assert_ne!(answer["chain_name"].as_str(), Some("swarm-mainnet"), "{address}: {answer}");
+            assert!(!valid_on(&answer).contains(&"swarm-mainnet".to_string()), "{address}: {answer}");
+        }
+        assert_eq!(valid_on(&parse_address_json(ZCASH_MAIN_P2PKH)), vec!["main".to_string()]);
+    }
+
+    #[test]
+    fn swarm_testnet_addresses_keep_the_answer_they_had() {
+        let answer = parse_address_json(SWARM_TESTNET_UA);
+        assert_eq!(answer["status"].as_str(), Some("success"), "{answer}");
+        // First profile that decodes, as before the change.
+        assert_eq!(answer["chain_name"].as_str(), Some("test"), "{answer}");
+        assert_eq!(answer["address_kind"].as_str(), Some("unified"), "{answer}");
+        let names = valid_on(&answer);
+        assert!(names.contains(&"test".to_string()), "{names:?}");
+        assert!(names.contains(&"swarm-testnet".to_string()), "{names:?}");
+        assert!(!names.contains(&"swarm-mainnet".to_string()), "{names:?}");
+    }
+
+    #[test]
+    fn the_same_receivers_on_the_other_swarm_chain_are_not_interchangeable() {
+        let main = valid_on(&parse_address_json(SWARM_MAIN_UA));
+        assert!(!main.contains(&"swarm-testnet".to_string()), "{main:?}");
+        assert!(!main.contains(&"test".to_string()), "{main:?}");
+    }
+
+    #[test]
+    fn empty_and_undecodable_strings_are_invalid() {
+        let mut truncated = FUEL_PAYOUT_UA.to_string();
+        truncated.pop();
+        for address in ["", "not an address", "swm1", truncated.as_str()] {
+            let answer = parse_address_json(address);
+            assert_eq!(answer["status"].as_str(), Some("Invalid address"), "{address}");
+            assert!(answer["chain_name"].is_null(), "{answer}");
+            assert!(valid_on(&answer).is_empty(), "{answer}");
+        }
+    }
 }
 
 // Validates a Unified Full Viewing Key for the renderer. Called from
