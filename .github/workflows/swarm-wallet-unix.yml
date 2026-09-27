@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       signed_intel_tag:
-        description: 'Published signed wallet release tag to verify; must match this source version'
+        description: 'Published signed wallet release tag to verify; must match this source version for network_profile'
         type: string
         default: ''
   push:
@@ -125,8 +125,9 @@ jobs:
       - name: Validate the complete packaging configuration
         run: node scripts/check-swarm-package-config.js
       # The signed Mac release runs only on the owner's Mac, so its decisions
-      # are tested here: which source tree it may sign, and that the macOS
-      # install hook leaves package.json exactly as it found it.
+      # are tested here: which source tree it may sign, how its files are
+      # named, what counts as a Developer ID signature, and that the macOS
+      # install hook leaves package.json as it found it.
       - name: Check the signed Mac release gates
         run: node --test scripts/mac-release-checks.test.cjs scripts/set-resolutions-macos.test.cjs
       # Everything cheap that can refuse the build runs before the hour of
@@ -273,31 +274,56 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      # The network the published package was built for decides its version,
+      # its file names, its app name and the screen the smoke test expects.
+      # Select it exactly as the build did; every name below is then read from
+      # src/buildProfile.json (src/version.ts no longer states the version, and
+      # the mainnet app is not "SWARM Wallet Testnet").
+      - name: Select the network the published package is for
+        run: node scripts/set-build-profile.js
+        env:
+          SWARM_NETWORK_PROFILE: ${{ inputs.network_profile || 'swarm-testnet' }}
       - name: Download the published signed Intel packages
         env:
           GH_TOKEN: ${{ github.token }}
           SIGNED_INTEL_TAG: ${{ inputs.signed_intel_tag }}
         run: |
           set -euo pipefail
-          version=$(sed -n 's/.*APP_VERSION = "\([^"]*\)".*/\1/p' src/version.ts | head -1)
+          version=$(node -p 'const f = require("./src/buildProfile.json"); f.profiles[f.profile].version')
           test -n "$version"
           test "$SIGNED_INTEL_TAG" = "swarm-wallet-$version"
           mkdir -p signed-intel
           gh release download "$SIGNED_INTEL_TAG" \
             --repo Swarm-Official/swarm-releases \
-            --pattern "SWARM-Wallet-$version-x64.*" \
-            --pattern 'SHA256SUMS-mac-x64' --dir signed-intel
+            --pattern "SWARM-Wallet-$version-mac-x64.dmg" \
+            --pattern "SWARM-Wallet-$version-mac-x64.zip" \
+            --pattern 'SHA256SUMS-mac-x64' \
+            --pattern 'release-manifest-mac-x64.json' --dir signed-intel
           cd signed-intel
           shasum -a 256 -c SHA256SUMS-mac-x64
+          node -e '
+            const file = require("../src/buildProfile.json");
+            const identity = file.profiles[file.profile];
+            const manifest = require("./release-manifest-mac-x64.json");
+            const wrong = [["version", manifest.version, identity.version], ["app_id", manifest.app_id, identity.appId], ["platform", manifest.platform, "darwin-x64"]]
+              .filter(([, actual, wanted]) => actual !== wanted);
+            if (wrong.length) throw new Error("release-manifest-mac-x64.json: " + wrong.map(([key, actual, wanted]) => key + " is " + actual + ", not " + wanted).join("; "));
+            console.log("manifest: " + manifest.product + " " + manifest.version + " " + manifest.platform + ", source " + manifest.source_commit + ", notary " + manifest.notary_submission_id);
+          '
       - name: Verify Gatekeeper and launch the exact signed DMG app
         run: |
           set -euo pipefail
-          version=$(sed -n 's/.*APP_VERSION = "\([^"]*\)".*/\1/p' src/version.ts | head -1)
-          dmg="signed-intel/SWARM-Wallet-$version-x64.dmg"
+          identity() { node -p "const f = require('./src/buildProfile.json'); f.profiles[f.profile].$1"; }
+          version=$(identity version)
+          app_name=$(identity executableName)
+          app_id=$(identity appId)
+          dmg="signed-intel/SWARM-Wallet-$version-mac-x64.dmg"
           hdiutil verify "$dmg"
           xcrun stapler validate "$dmg"
           hdiutil attach -readonly -nobrowse -mountpoint /Volumes/SWARM-Wallet-Intel-Verify "$dmg"
-          app='/Volumes/SWARM-Wallet-Intel-Verify/SWARM Wallet Testnet.app'
+          app="/Volumes/SWARM-Wallet-Intel-Verify/$app_name.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "$app_id"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
           node scripts/check-swarm-macho-arch.js mac-x64 /Volumes/SWARM-Wallet-Intel-Verify
           codesign --verify --deep --strict "$app"
           spctl --assess --type execute --verbose=4 "$app"
@@ -306,8 +332,8 @@ jobs:
           SWARM_DIST=/Volumes/SWARM-Wallet-Intel-Verify \
             SWARM_SMOKE_DIAGNOSTICS="$RUNNER_TEMP/swarm-wallet-intel-smoke" \
             node scripts/swarm-smoke.js mac
-          ditto -x -k "signed-intel/SWARM-Wallet-$version-x64.zip" signed-intel/zip-app
-          codesign --verify --deep --strict 'signed-intel/zip-app/SWARM Wallet Testnet.app'
+          ditto -x -k "signed-intel/SWARM-Wallet-$version-mac-x64.zip" signed-intel/zip-app
+          codesign --verify --deep --strict "signed-intel/zip-app/$app_name.app"
       - name: Detach the test image
         if: always()
         run: hdiutil detach /Volumes/SWARM-Wallet-Intel-Verify || true
