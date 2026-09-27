@@ -165,6 +165,17 @@ function architectureProblems(expected, archsByFile) {
     .map(([file, archs]) => `${file} is ${archs.trim() || "unreadable"}, not ${expected}; rebuild it for this architecture`);
 }
 
+/** The release file names, one set per architecture, so they never collide with another platform's. */
+function releaseFileNames(version, arch) {
+  if (!["arm64", "x64"].includes(arch)) throw new Error(`Unsupported Mac architecture: ${arch}`);
+  return {
+    dmg: `SWARM-Wallet-${version}-mac-${arch}.dmg`,
+    zip: `SWARM-Wallet-${version}-mac-${arch}.zip`,
+    checksums: `SHA256SUMS-mac-${arch}`,
+    manifest: `release-manifest-mac-${arch}.json`,
+  };
+}
+
 module.exports = {
   BUILD_PROFILE,
   generatedBuildProfile,
@@ -175,6 +186,7 @@ module.exports = {
   describeSourceTree,
   frontendProblems,
   architectureProblems,
+  releaseFileNames,
 };
 
 if (require.main === module) {

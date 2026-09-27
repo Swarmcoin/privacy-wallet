@@ -37,12 +37,9 @@ const version = identity.version;
 const notaryProfile = process.env.APPLE_KEYCHAIN_PROFILE;
 const resume = process.argv.includes('--resume');
 const app = path.join(output, arch === 'x64' ? 'mac' : 'mac-arm64', `${identity.executableName}.app`);
-const names = {
-  dmg: `SWARM-Wallet-${version}-${arch}.dmg`,
-  zip: `SWARM-Wallet-${version}-${arch}.zip`,
-  checksums: 'SHA256SUMS',
-  manifest: 'release-manifest.json',
-};
+// Named per platform: the plain `SWARM-Wallet-<version>-x64.zip` is the Windows
+// portable zip's name, and both land on the same release.
+const names = checks.releaseFileNames(version, arch);
 const dmg = path.join(output, names.dmg);
 const zip = path.join(output, names.zip);
 const sha = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');

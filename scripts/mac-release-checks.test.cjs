@@ -209,3 +209,76 @@ test("a native module left over from the other architecture is named before pack
   assert.match(wrong[0], /build\/native\.node is arm64, not x86_64/);
   assert.match(wrong[1], /unreadable/);
 });
+
+test("Mac release files are named per platform and never take the Windows zip's name", () => {
+  assert.deepEqual(checks.releaseFileNames("0.1.0-mainnet.6", "x64"), {
+    dmg: "SWARM-Wallet-0.1.0-mainnet.6-mac-x64.dmg",
+    zip: "SWARM-Wallet-0.1.0-mainnet.6-mac-x64.zip",
+    checksums: "SHA256SUMS-mac-x64",
+    manifest: "release-manifest-mac-x64.json",
+  });
+  const windowsZip = require(path.join(root, "configs/swarm-builder.cjs"))
+    .artifactName.replace("${version}", "0.1.0-mainnet.6")
+    .replace("${arch}", "x64")
+    .replace("${ext}", "zip");
+  assert.equal(windowsZip, "SWARM-Wallet-0.1.0-mainnet.6-x64.zip");
+  assert.notEqual(checks.releaseFileNames("0.1.0-mainnet.6", "x64").zip, windowsZip);
+  assert.throws(() => checks.releaseFileNames("0.1.0-mainnet.6", "universal"), /Unsupported/);
+});
+
+/** configs/swarm-mac-developer-id.cjs, loaded with a stand-in for the Keychain lookup. */
+function developerIdConfig(arch) {
+  const identityModule = require.resolve("./mac-distribution-identity.cjs");
+  const configModule = require.resolve("../configs/swarm-mac-developer-id.cjs");
+  const saved = { identity: require.cache[identityModule], arch: process.env.SWARM_MAC_ARCH };
+  require.cache[identityModule] = {
+    id: identityModule,
+    filename: identityModule,
+    loaded: true,
+    exports: () => "Developer ID Application: Example Holder (ABCDE12345)",
+  };
+  delete require.cache[configModule];
+  process.env.SWARM_MAC_ARCH = arch;
+  try {
+    return require(configModule);
+  } finally {
+    delete require.cache[configModule];
+    if (saved.identity) require.cache[identityModule] = saved.identity;
+    else delete require.cache[identityModule];
+    if (saved.arch === undefined) delete process.env.SWARM_MAC_ARCH;
+    else process.env.SWARM_MAC_ARCH = saved.arch;
+  }
+}
+
+test("the Developer ID config names files as the script expects", () => {
+  for (const arch of ["arm64", "x64"]) {
+    const config = developerIdConfig(arch);
+    assert.equal(config.afterSign, "./scripts/verify-mac-signed-app.cjs");
+    assert.equal(config.mac.identity, "Example Holder (ABCDE12345)");
+    assert.equal(config.mac.hardenedRuntime, true);
+    assert.equal(config.mac.notarize, true);
+    assert.equal(config.mac.entitlements, "./configs/entitlements.swarm-mac.plist");
+    assert.equal(config.mac.entitlementsInherit, "./configs/entitlements.swarm-mac.plist");
+    assert.ok(config.mac.binaries.includes("Contents/Resources/nym-proxy"));
+    assert.equal(config.directories.output, arch === "x64" ? "dist-mac-signed-x64" : "dist-mac-signed");
+    assert.deepEqual(config.mac.target, [{ target: "dmg", arch: [arch] }, { target: "zip", arch: [arch] }]);
+    const expand = (pattern, ext) => pattern.replace("${version}", "0.1.0-mainnet.6").replace("${arch}", arch).replace("${ext}", ext);
+    const names = checks.releaseFileNames("0.1.0-mainnet.6", arch);
+    assert.equal(expand(config.dmg.artifactName, "dmg"), names.dmg);
+    assert.equal(expand(config.mac.artifactName, "zip"), names.zip);
+  }
+});
+
+test("electron-builder accepts the Developer ID config", async (t) => {
+  let configTools;
+  try {
+    configTools = {
+      ...require("app-builder-lib/out/util/config/config"),
+      DebugLogger: require("builder-util").DebugLogger,
+    };
+  } catch {
+    t.skip("electron-builder is not installed here (yarn install --frozen-lockfile)");
+    return;
+  }
+  await configTools.validateConfiguration(developerIdConfig("x64"), new configTools.DebugLogger(false));
+});
