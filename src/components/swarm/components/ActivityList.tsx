@@ -9,6 +9,12 @@ const STATE_CLASS: Record<string, string> = {
   PENDING: styles.statePending,
   FAILED: styles.stateFailed,
   MINED: styles.stateMined,
+  // Neutral, not red. Red on this list means something went wrong that the
+  // user may have to act on — a payment to retry. A reward lost to a fork
+  // asks nothing of anyone, took nothing from the balance, and happens to
+  // about one reward in a hundred; drawn red, it reads as the wallet or the
+  // miner being broken.
+  "LOST TO A FORK": styles.stateForkLost,
 };
 
 function whenLabel(time: number): string {
@@ -64,7 +70,13 @@ export const ActivityList: React.FC<ActivityListProps> = ({ rows, hidden, emptyT
             </span>
             <span className={styles.rowRight}>
               <span
-                className={`${styles.rowAmount} ${row.direction === "in" ? styles.rowAmountIn : styles.rowAmountOut}`}
+                className={`${styles.rowAmount} ${
+                  row.forkLost
+                    ? styles.rowAmountVoid
+                    : row.direction === "in"
+                      ? styles.rowAmountIn
+                      : styles.rowAmountOut
+                }`}
               >
                 {maskAmount(row.amount, hidden)}
               </span>

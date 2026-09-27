@@ -12,6 +12,7 @@ import {
   deriveOwnAddresses,
   filterActivity,
   formatSwm,
+  incomingUnconfirmed,
   isBlockReward,
   isTransparentAddress,
   maskAmount,
@@ -119,8 +120,8 @@ describe("deriveBalances", () => {
 });
 
 describe("isTransparentAddress", () => {
-  it("knows this network's transparent prefix", () => {
-    expect(isTransparentAddress(TM)).toBe(true);
+  it("knows SWARM Testnet's transparent prefix, and upstream's on any build", () => {
+    expect(isTransparentAddress(TM, SWARM_TESTNET_PROFILE)).toBe(true);
     expect(isTransparentAddress("t1abc")).toBe(true);
   });
 
@@ -179,8 +180,8 @@ describe("visibilityOf", () => {
   });
 
   it("falls back to the recipient address when no pools are reported", () => {
-    expect(visibilityOf(vt({ address: TM }))).toBe("revealed");
-    expect(visibilityOf(vt({ address: UTEST }))).toBe("shielded");
+    expect(visibilityOf(vt({ address: TM }), SWARM_TESTNET_PROFILE)).toBe("revealed");
+    expect(visibilityOf(vt({ address: UTEST }), SWARM_TESTNET_PROFILE)).toBe("shielded");
   });
 });
 
@@ -292,6 +293,72 @@ describe("filterActivity", () => {
     expect(filterActivity(rows, "mined")).toHaveLength(0);
     const withReward = toActivityRows([vt({ type: ValueTransferKindEnum.received, is_coinbase: true })]);
     expect(filterActivity(withReward, "mined")).toHaveLength(1);
+  });
+});
+
+// A block reward whose block lost a fork. pepper-sync marks the transactions
+// of a reorged-away block `Failed` when it truncates (`set_transactions_
+// failed_unchecked`), and truncation is the only way a `Confirmed` coinbase
+// can become one. On the owner's wallet on 2026-09-27 seven of ~765 rewards
+// read "Block reward +5.00 FAILED"; the explorer shows another miner's block
+// at each of those heights. Nothing was paid and nothing left the balance —
+// failed outputs are in no balance the SDK computes — so the row says that
+// instead of "FAILED", which reads as the wallet losing money.
+describe("a block reward lost to a fork", () => {
+  const lost = vt({
+    type: ValueTransferKindEnum.received,
+    isCoinbase: true,
+    status: ValueTransferStatusEnum.failed,
+    confirmations: 0,
+    blockheight: 1316,
+    amount: 5,
+  });
+
+  it("says it was lost to a fork, not that it failed", () => {
+    const row = toActivityRow(lost, 0, SWARM_MAINNET_PROFILE);
+    expect(row.state).toBe("LOST TO A FORK");
+    expect(row.forkLost).toBe(true);
+    expect(row.title).toBe("Block reward");
+  });
+
+  it("names the block and says nothing was paid and nothing left the balance", () => {
+    expect(toActivityRow(lost, 0).subtitle).toBe(
+      "block #1316 was replaced by another miner's block; nothing was paid and nothing left your balance",
+    );
+  });
+
+  it("stays under the Mined filter: it is true information about mining", () => {
+    expect(filterActivity(toActivityRows([lost]), "mined")).toHaveLength(1);
+  });
+
+  it("is not how a failed ordinary send or receipt is labelled", () => {
+    const send = toActivityRow(
+      vt({ type: ValueTransferKindEnum.sent, status: ValueTransferStatusEnum.failed, address: TM }),
+      0,
+    );
+    expect(send.state).toBe("FAILED");
+    expect(send.forkLost).toBe(false);
+    const receipt = toActivityRow(vt({ status: ValueTransferStatusEnum.failed }), 0);
+    expect(receipt.state).toBe("FAILED");
+    expect(receipt.forkLost).toBe(false);
+  });
+
+  it("is never counted as on its way", () => {
+    const pending = vt({ confirmations: 0, status: ValueTransferStatusEnum.mempool, txid: "p" });
+    const failedReceipt = vt({ confirmations: 0, status: ValueTransferStatusEnum.failed, txid: "f" });
+    // The mapper gives every failed transfer zero confirmations, so the old
+    // Receive-screen rule ("received, 0 confirmations") listed each lost
+    // reward as a payment on its way, for ever.
+    expect(incomingUnconfirmed([lost, pending, failedReceipt]).map((t) => t.txid)).toEqual(["p"]);
+  });
+
+  it("cannot reach a balance the screens compute: those come from the SDK's totals alone", () => {
+    // `deriveBalances` reads the addon's balance and nothing else, and the
+    // SDK sums only `Confirmed` and pending outputs (zingo-status
+    // `is_confirmed` / `is_pending`; `Failed` is neither), so a lost
+    // reward has no way in.
+    expect(deriveBalances.length).toBe(1);
+    expect(deriveBalances(new TotalBalanceClass()).total).toBe(0);
   });
 });
 

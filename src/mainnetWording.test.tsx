@@ -266,11 +266,20 @@ describe("a mainnet build's screens say nothing about test coins or test network
   it("Receive", () => {
     renderInApp(<ReceiveScreen />);
     expect(testWording()).toEqual([]);
+    // The state holds a reward lost to a fork (block 1316): zero
+    // confirmations, and still not a payment on its way.
+    expect(screen.getByText("Nothing on its way right now.")).toBeInTheDocument();
   });
 
   it("Activity", () => {
     renderInApp(<ActivityScreen />);
     expect(testWording()).toEqual([]);
+    // The lost reward reads as what it is, and nothing in the list says FAILED.
+    expect(screen.getByText("LOST TO A FORK")).toBeInTheDocument();
+    expect(screen.queryByText("FAILED")).toBeNull();
+    expect(screen.getByText(/block #1316 was replaced by another miner's block/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/block #1316 was replaced/));
+    expect(screen.getByText(/The reward was never paid, nothing left your balance/)).toBeInTheDocument();
   });
 
   it("Addresses, with the new-contact form open", () => {

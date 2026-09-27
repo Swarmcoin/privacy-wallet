@@ -118,10 +118,15 @@ export type SwarmActivityRow = {
   /** Sign only, so a list can colour incoming and outgoing differently. */
   direction: "in" | "out" | "self";
   visibility: SwarmVisibility;
-  /** The badge text: SHIELDED / REVEALED / MINED / PENDING / FAILED. */
+  /** The badge text: SHIELDED / REVEALED / MINED / PENDING / FAILED / LOST TO A FORK. */
   state: string;
   /** Whether the wallet flagged this receipt as a mined block reward. */
   mined: boolean;
+  /**
+   * A block reward whose block another miner's replaced (`isForkLostReward`).
+   * Nothing was paid, so a list draws its amount as void rather than received.
+   */
+  forkLost: boolean;
   time: number;
   memos: string[];
   address?: string;
@@ -178,7 +183,10 @@ export function isTransparentAddress(
  * are unknown is judged by its recipient address — the one other piece of
  * evidence there is.
  */
-export function visibilityOf(vt: ValueTransferClass, profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE): SwarmVisibility {
+export function visibilityOf(
+  vt: ValueTransferClass,
+  profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): SwarmVisibility {
   const pools = [...(vt.poolsReceived ?? []), ...(vt.poolsSentFrom ?? [])];
   const touchedTransparent = pools.includes(ValueTransferPoolEnum.transparent);
   const touchedShielded = pools.some((p) => SHIELDED_POOL_SET.has(p));
@@ -227,6 +235,43 @@ export function isBlockReward(vt: ValueTransferClass): boolean {
   return flagged.isCoinbase === true || flagged.is_coinbase === true;
 }
 
+/**
+ * Whether this is a block reward whose block lost a fork.
+ *
+ * pepper-sync marks the transactions of a reorged-away block `Failed` when it
+ * truncates (`set_transactions_failed_unchecked` in the SDK: "it fails
+ * transactions in reorged-away blocks"), and truncation is the only path by
+ * which a `Confirmed` coinbase becomes `Failed` — the checked path refuses to
+ * fail a confirmed transaction. So a failed block reward is a block that
+ * another miner's block replaced: nothing was paid, and nothing left the
+ * balance, because the SDK counts no `Failed` output in any balance
+ * (`account_balance` sums only `is_confirmed` and `is_pending` outputs).
+ *
+ * With two miners at ~70-second blocks and one peer, about one reward in a
+ * hundred goes this way; on 2026-09-27 the owner's wallet showed seven of
+ * ~765. It is true information about mining, so the row stays — it is only
+ * the word "FAILED" that was false.
+ */
+export function isForkLostReward(vt: ValueTransferClass): boolean {
+  return isBlockReward(vt) && vt.status === ValueTransferStatusEnum.failed;
+}
+
+/**
+ * The receipts that are on their way: seen, not yet in a block.
+ *
+ * Not "every receipt with zero confirmations". The renderer's mapper gives a
+ * failed transfer zero confirmations, so that rule listed every reward lost
+ * to a fork, and every failed receipt, as a payment on its way — for ever.
+ */
+export function incomingUnconfirmed(vts: ValueTransferClass[]): ValueTransferClass[] {
+  return (vts ?? []).filter(
+    (vt) =>
+      vt.type === ValueTransferKindEnum.received &&
+      vt.confirmations === 0 &&
+      vt.status !== ValueTransferStatusEnum.failed,
+  );
+}
+
 function abbreviate(address: string | undefined, chars = 8): string {
   if (!address) return "";
   if (address.length <= chars * 2 + 3) return address;
@@ -257,7 +302,7 @@ function titleFor(vt: ValueTransferClass): { title: string; direction: "in" | "o
 }
 
 function stateFor(vt: ValueTransferClass, visibility: SwarmVisibility): string {
-  if (vt.status === ValueTransferStatusEnum.failed) return "FAILED";
+  if (vt.status === ValueTransferStatusEnum.failed) return isBlockReward(vt) ? "LOST TO A FORK" : "FAILED";
   if (vt.confirmations === 0) return "PENDING";
   if (isBlockReward(vt)) return "MINED";
   return visibility === "revealed" ? "REVEALED" : "SHIELDED";
@@ -270,12 +315,15 @@ export function toActivityRow(
 ): SwarmActivityRow {
   const visibility = visibilityOf(vt, profile);
   const mined = isBlockReward(vt);
+  const forkLost = isForkLostReward(vt);
   const { title, direction } = titleFor(vt);
   const sign = direction === "in" ? "+" : direction === "out" ? "−" : "";
   const memos = (vt.memos ?? []).filter((m) => !!m && m.trim().length > 0);
 
   let subtitle: string;
-  if (mined) {
+  if (forkLost) {
+    subtitle = `block #${vt.blockheight} was replaced by another miner's block; nothing was paid and nothing left your balance`;
+  } else if (mined) {
     subtitle = `block #${vt.blockheight}`;
   } else if (vt.address) {
     subtitle = `${direction === "in" ? "from" : "to"} ${abbreviate(vt.address)}`;
@@ -299,6 +347,7 @@ export function toActivityRow(
     direction,
     visibility,
     mined,
+    forkLost,
     state: stateFor(vt, visibility),
     time: vt.time,
     memos,

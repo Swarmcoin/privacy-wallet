@@ -69,7 +69,11 @@ const DetailPanel: React.FC<{ row: SwarmActivityRow | null; hidden: boolean }> =
         <div className={styles.panelTitle}>{row.title}</div>
         <span
           className={`${styles.rowState} ${
-            row.visibility === "revealed" ? styles.stateRevealed : styles.stateShielded
+            row.forkLost
+              ? styles.stateForkLost
+              : row.visibility === "revealed"
+                ? styles.stateRevealed
+                : styles.stateShielded
           }`}
         >
           <span className={styles.statusDot} />
@@ -136,9 +140,11 @@ const DetailPanel: React.FC<{ row: SwarmActivityRow | null; hidden: boolean }> =
       )}
 
       <div className={styles.statNote}>
-        {row.visibility === "shielded"
-          ? "On the chain, others can see that this transaction exists and what it paid in fees. Not who, not how much."
-          : "This transfer touched a transparent address, so the address and the amount are public on the chain."}
+        {row.forkLost
+          ? `Another miner's block was chosen at height ${row.blockheight}, so the block this wallet's reward was in is not part of the chain. The reward was never paid, nothing left your balance, and there is nothing to do. With more than one miner this happens to about one block in a hundred.`
+          : row.visibility === "shielded"
+            ? "On the chain, others can see that this transaction exists and what it paid in fees. Not who, not how much."
+            : "This transfer touched a transparent address, so the address and the amount are public on the chain."}
       </div>
     </section>
   );

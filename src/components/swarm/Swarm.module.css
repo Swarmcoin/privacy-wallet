@@ -806,6 +806,15 @@ details[open] > .detailsSummary::before {
 .stateFailed {
   color: var(--swarm-red);
 }
+/* A block reward lost to a fork: information, not an alarm. */
+.stateForkLost {
+  color: var(--swarm-text-muted);
+}
+/* Its amount was never paid, so it is drawn as void, not as received. */
+.rowAmountVoid {
+  color: var(--swarm-text-muted);
+  text-decoration: line-through;
+}
 
 .rowState .statusDot {
   background: currentColor;
