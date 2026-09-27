@@ -8,6 +8,7 @@ import {
   ValueTransferStatusEnum,
   ValueTransferPoolEnum,
   ServerChainNameEnum,
+  BlockExplorerEnum,
 } from "../../appstate";
 import routes from "../../../constants/routes.json";
 
@@ -31,7 +32,7 @@ beforeAll(() => {
 });
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { native, clipboard } = require("../../../electronBridge");
+const { native, clipboard, shell } = require("../../../electronBridge");
 
 const makeVt = (overrides: Partial<ValueTransferClass> = {}): ValueTransferClass => {
   const v = new ValueTransferClass(
@@ -62,6 +63,8 @@ const baseProps = {
 
 const mainnetWallet = { id: 1, chain_name: ServerChainNameEnum.mainChainName } as any;
 const regtestWallet = { id: 1, chain_name: ServerChainNameEnum.regtestChainName } as any;
+const swarmMainnetWallet = { id: 1, chain_name: ServerChainNameEnum.swarmMainnetChainName } as any;
+const swarmTestnetWallet = { id: 1, chain_name: ServerChainNameEnum.swarmTestnetChainName } as any;
 
 describe("VtModal", () => {
   beforeEach(() => {
@@ -128,6 +131,39 @@ describe("VtModal", () => {
       contextOverrides: { valueTransfers: [vt], currentWallet: mainnetWallet },
     });
     expect(screen.getByText(/View TXID/)).toBeInTheDocument();
+  });
+
+  // Both SWARM chains get the button, and it opens that chain's own SWARM
+  // explorer, read from its own group of settings. SWARM mainnet used to open
+  // Zcash's mainnet explorer from the testnet group; SWARM testnet opened nothing.
+  it.each([
+    ["SWARM mainnet", swarmMainnetWallet, "https://mainnet.explore.swarm.green/transactions/abcdef1234567890"],
+    ["SWARM testnet", swarmTestnetWallet, "https://testnet.explore.swarm.green/transactions/abcdef1234567890"],
+  ])("on %s, 'View TXID' opens that network's SWARM explorer", (_name, wallet, url) => {
+    (shell.openExternal as jest.Mock).mockClear();
+    const vt = makeVt();
+    render(<VtModalInternal {...baseProps} vt={vt} valueTransfersSliced={[vt]} />, {
+      contextOverrides: { valueTransfers: [vt], currentWallet: wallet },
+    });
+    fireEvent.click(screen.getByText(/View TXID/));
+    expect(shell.openExternal).toHaveBeenCalledWith(url);
+  });
+
+  it("on SWARM mainnet, a custom explorer is read from the SWARM Mainnet settings, not the testnet ones", () => {
+    (shell.openExternal as jest.Mock).mockClear();
+    const vt = makeVt();
+    render(<VtModalInternal {...baseProps} vt={vt} valueTransfersSliced={[vt]} />, {
+      contextOverrides: {
+        valueTransfers: [vt],
+        currentWallet: swarmMainnetWallet,
+        blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
+        blockExplorerMainnetTransactionCustom: "https://main.example/tx/",
+        blockExplorerTestnetTransaction: BlockExplorerEnum.Custom,
+        blockExplorerTestnetTransactionCustom: "https://test.example/tx/",
+      },
+    });
+    fireEvent.click(screen.getByText(/View TXID/));
+    expect(shell.openExternal).toHaveBeenCalledWith("https://main.example/tx/abcdef1234567890");
   });
 
   // Named in place, as every other screen saves a contact, not on the Address

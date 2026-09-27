@@ -16,6 +16,7 @@ import {
   ZEC_SWAP_CHAIN,
 } from "../../appstate";
 import Utils from "../../../utils/utils";
+import { usesMainnetExplorerSetting } from "../../../utils/explorerLinks";
 import { chainLabelForCurrency } from "../../../utils/swarmNetwork";
 import { ZcashURITarget } from "../../../utils/uris";
 import { ContextApp } from "../../../context/ContextAppState";
@@ -489,10 +490,10 @@ const VtModalInternal: React.FC<VtModalInternalProps> = ({
                   Utils.openTxid(
                     txid,
                     currentWallet?.chain_name,
-                    currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                    usesMainnetExplorerSetting(currentWallet?.chain_name)
                       ? blockExplorerMainnetTransaction
                       : blockExplorerTestnetTransaction,
-                    currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                    usesMainnetExplorerSetting(currentWallet?.chain_name)
                       ? blockExplorerMainnetTransactionCustom
                       : blockExplorerTestnetTransactionCustom,
                   )

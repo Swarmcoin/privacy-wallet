@@ -23,11 +23,20 @@ test("custom testnet uses test addresses while rejecting mainnet and regtest enc
   expect(Utils.sameAddressNetwork(ServerChainNameEnum.regtestChainName, project)).toBe(false);
 });
 
-test("custom testnet does not send transaction or address identifiers to public explorers", () => {
-  const project = ServerChainNameEnum.swarmTestnetChainName;
-  expect(Utils.zecExplorerTxUrl("test-tx", project, BlockExplorerEnum.Zcashexplorer, "")).toBe("");
-  Utils.openAddress("test-address", project, BlockExplorerEnum.Zcashexplorer, "");
-  expect(mockOpenExternal).not.toHaveBeenCalled();
+test("SWARM chains never send transaction or address identifiers to Zcash's public explorers", () => {
+  // Each goes to its own SWARM explorer instead, whatever an older version
+  // stored as the choice (see src/utils/explorerLinks.test.ts).
+  const testnet = ServerChainNameEnum.swarmTestnetChainName;
+  expect(Utils.zecExplorerTxUrl("test-tx", testnet, BlockExplorerEnum.Zcashexplorer, "")).toBe(
+    "https://testnet.explore.swarm.green/transactions/test-tx",
+  );
+  Utils.openAddress("test-address", testnet, BlockExplorerEnum.Zcashexplorer, "");
+  expect(mockOpenExternal).toHaveBeenCalledWith("https://testnet.explore.swarm.green/address/test-address");
+  const mainnet = ServerChainNameEnum.swarmMainnetChainName;
+  expect(Utils.zecExplorerTxUrl("test-tx", mainnet, BlockExplorerEnum.Zcashexplorer, "")).toBe(
+    "https://mainnet.explore.swarm.green/transactions/test-tx",
+  );
+  for (const [url] of mockOpenExternal.mock.calls) expect(url).not.toMatch(/zcashexplorer|cipherscan|zexplorer/);
 });
 
 // ---------------------------------------------------------------------------

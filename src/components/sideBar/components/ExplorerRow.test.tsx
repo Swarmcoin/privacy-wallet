@@ -5,9 +5,10 @@ import { BlockExplorerEnum } from "../../appstate";
 
 const baseProps = {
   label: "Transactions",
-  ariaLabel: "Block explorer for mainnet transactions",
+  ariaLabel: "Block explorer for SWARM Mainnet transactions",
   customPlaceholder: "https://mainnet.block-explorer/tx/",
-  value: BlockExplorerEnum.Zcashexplorer,
+  swarmExplorerHost: "mainnet.explore.swarm.green",
+  value: BlockExplorerEnum.Swarm,
   onChange: jest.fn(),
   customValue: "",
   onCustomChange: jest.fn(),
@@ -21,8 +22,16 @@ describe("ExplorerRow", () => {
   it("renders the label and the select with the current value", () => {
     render(<ExplorerRow {...baseProps} />);
     expect(screen.getByText("Transactions")).toBeInTheDocument();
-    const select = screen.getByRole("combobox", { name: /block explorer for mainnet transactions/i });
-    expect(select).toHaveValue(BlockExplorerEnum.Zcashexplorer);
+    const select = screen.getByRole("combobox", { name: /block explorer for SWARM Mainnet transactions/i });
+    expect(select).toHaveValue(BlockExplorerEnum.Swarm);
+  });
+
+  it("offers this network's SWARM explorer by its host, and Custom, and no Zcash explorer", () => {
+    render(<ExplorerRow {...baseProps} />);
+    const options = screen.getAllByRole("option", { hidden: true }).map((o) => o.textContent);
+    expect(options).toContain("SWARM Explorer (mainnet.explore.swarm.green)");
+    expect(options).toContain("Custom");
+    expect(options.join(" ")).not.toMatch(/Zcash|Cipher|Zexplorer/);
   });
 
   it("does NOT render the custom URL input when value is a predefined option", () => {
@@ -41,10 +50,10 @@ describe("ExplorerRow", () => {
   it("calls onChange with the new BlockExplorerEnum value when the select changes", () => {
     const onChange = jest.fn();
     render(<ExplorerRow {...baseProps} onChange={onChange} />);
-    const select = screen.getByRole("combobox", { name: /block explorer for mainnet transactions/i });
-    fireEvent.change(select, { target: { value: BlockExplorerEnum.Cipherscan } });
+    const select = screen.getByRole("combobox", { name: /block explorer for SWARM Mainnet transactions/i });
+    fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith(BlockExplorerEnum.Cipherscan);
+    expect(onChange).toHaveBeenCalledWith(BlockExplorerEnum.Custom);
   });
 
   it("calls onCustomChange when the custom URL input changes", () => {

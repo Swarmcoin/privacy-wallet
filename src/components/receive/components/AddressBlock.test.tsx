@@ -28,7 +28,7 @@ jest.mock("../../../rpc/rpc", () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const RPC = require("../../../rpc/rpc").default;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { clipboard } = require("../../../electronBridge");
+const { clipboard, shell } = require("../../../electronBridge");
 
 const uAddr = new UnifiedAddressClass(0, 0, "u1shortaddr000000000000000", true, false, false);
 const tAddr = new TransparentAddressClass(0, 0, AddressScopeEnum.external, "t1shortaddr");
@@ -37,6 +37,8 @@ const longUAddr = new UnifiedAddressClass(0, 0, "u1" + "a".repeat(100), true, tr
 const mainnetWallet = { id: 1, chain_name: ServerChainNameEnum.mainChainName } as any;
 const testnetWallet = { id: 1, chain_name: ServerChainNameEnum.testChainName } as any;
 const regtestWallet = { id: 1, chain_name: ServerChainNameEnum.regtestChainName } as any;
+const swarmMainnetWallet = { id: 1, chain_name: ServerChainNameEnum.swarmMainnetChainName } as any;
+const swarmTestnetWallet = { id: 1, chain_name: ServerChainNameEnum.swarmTestnetChainName } as any;
 
 const baseProps = {
   currencyName: "ZEC",
@@ -138,6 +140,22 @@ describe("AddressBlock — Unified", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "u1shortaddr000000000000000" }));
     expect(screen.getByRole("button", { name: /view on explorer/i })).toBeInTheDocument();
+  });
+
+  // Both SWARM chains get the button, and it opens that chain's own SWARM
+  // explorer. SWARM mainnet used to open Zcash's mainnet explorer, and SWARM
+  // testnet's button opened nothing.
+  it.each([
+    ["SWARM mainnet", swarmMainnetWallet, "https://mainnet.explore.swarm.green/address/"],
+    ["SWARM testnet", swarmTestnetWallet, "https://testnet.explore.swarm.green/address/"],
+  ])("on %s, 'View on explorer' opens that network's SWARM explorer", (_name, wallet, prefix) => {
+    (shell.openExternal as jest.Mock).mockClear();
+    renderInAccordion(<AddressBlock {...baseProps} address={uAddr} type="u" />, {
+      contextOverrides: { currentWallet: wallet },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "u1shortaddr000000000000000" }));
+    fireEvent.click(screen.getByRole("button", { name: /view on explorer/i }));
+    expect(shell.openExternal).toHaveBeenCalledWith(`${prefix}u1shortaddr000000000000000`);
   });
 
   it("shows the optional label when provided", () => {

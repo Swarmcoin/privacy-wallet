@@ -4,12 +4,20 @@ import cstyles from "../../common/Common.module.css";
 import { BlockExplorerEnum } from "../../appstate";
 import { ContextApp } from "../../../context/ContextAppState";
 import ExplorerRow from "./ExplorerRow";
+import { SWARM_MAINNET_PROFILE, SWARM_TESTNET_PROFILE } from "../../../utils/networkProfiles";
 
 type BlockExplorerModalProps = {
   modalIsOpen: boolean;
   closeModal: () => void;
   modalTitle: string;
 };
+
+// The two groups of settings are the two SWARM networks: SWARM mainnet reads
+// the "mainnet" fields and SWARM testnet the "testnet" ones (see
+// usesMainnetExplorerSetting in src/utils/explorerLinks.ts). The headings say
+// so, and each group offers that network's own explorer by its host.
+const MAINNET_EXPLORER_HOST = new URL(SWARM_MAINNET_PROFILE.explorerUrl).host;
+const TESTNET_EXPLORER_HOST = new URL(SWARM_TESTNET_PROFILE.explorerUrl).host;
 
 const normalizeCustom = (selected: BlockExplorerEnum, value: string) => {
   if (selected !== BlockExplorerEnum.Custom) return "";
@@ -123,12 +131,13 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
 
       <div className={`${cstyles.well} ${cstyles.margintopsmall}`} style={{ marginTop: 24 }}>
         <div className={cstyles.small} style={{ opacity: 0.6, marginBottom: 12 }}>
-          Mainnet
+          SWARM Mainnet
         </div>
         <ExplorerRow
           label="Transactions"
-          ariaLabel="Block explorer for mainnet transactions"
+          ariaLabel="Block explorer for SWARM Mainnet transactions"
           customPlaceholder="https://mainnet.block-explorer/tx/"
+          swarmExplorerHost={MAINNET_EXPLORER_HOST}
           value={blockExplorerMainnetTransaction}
           onChange={setBlockExplorerMainnetTransaction}
           customValue={blockExplorerMainnetTransactionCustom}
@@ -136,8 +145,9 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
         />
         <ExplorerRow
           label="Addresses"
-          ariaLabel="Block explorer for mainnet addresses"
+          ariaLabel="Block explorer for SWARM Mainnet addresses"
           customPlaceholder="https://mainnet.block-explorer/address/"
+          swarmExplorerHost={MAINNET_EXPLORER_HOST}
           value={blockExplorerMainnetAddress}
           onChange={setBlockExplorerMainnetAddress}
           customValue={blockExplorerMainnetAddressCustom}
@@ -147,12 +157,13 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
 
       <div className={cstyles.well} style={{ marginTop: 16 }}>
         <div className={cstyles.small} style={{ opacity: 0.6, marginBottom: 12 }}>
-          Testnet
+          SWARM Testnet
         </div>
         <ExplorerRow
           label="Transactions"
-          ariaLabel="Block explorer for testnet transactions"
+          ariaLabel="Block explorer for SWARM Testnet transactions"
           customPlaceholder="https://testnet.block-explorer/tx/"
+          swarmExplorerHost={TESTNET_EXPLORER_HOST}
           value={blockExplorerTestnetTransaction}
           onChange={setBlockExplorerTestnetTransaction}
           customValue={blockExplorerTestnetTransactionCustom}
@@ -160,8 +171,9 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
         />
         <ExplorerRow
           label="Addresses"
-          ariaLabel="Block explorer for testnet addresses"
+          ariaLabel="Block explorer for SWARM Testnet addresses"
           customPlaceholder="https://testnet.block-explorer/address/"
+          swarmExplorerHost={TESTNET_EXPLORER_HOST}
           value={blockExplorerTestnetAddress}
           onChange={setBlockExplorerTestnetAddress}
           customValue={blockExplorerTestnetAddressCustom}

@@ -36,24 +36,22 @@ export enum SwarmProfileIdEnum {
  * The genesis block hash of the SWARM production network, in the display order
  * a node prints.
  *
- * Deliberately `null`. SWARM production has no genesis: it is generated at the
- * launch ceremony from a public unpredictable input, and until then there is no
- * honest value to put here. A placeholder would make the profile selectable and
+ * Generated at the launch ceremony on 2026-09-26 and taken from the network
+ * manifest; SWARM mainnet has been running on it since. It was `null` until
+ * then, deliberately: a placeholder would have made the profile selectable and
  * let a build sync against whatever chain happened to answer, which is the one
- * failure this whole file is arranged to prevent.
- *
- * A release fills this in, from the network manifest, in the same commit that
- * fills in `SWARM_MAINNET_SERVER` below.
+ * failure this whole file is arranged to prevent. The type still allows `null`
+ * so the unlaunched state stays testable (see `withoutGenesis`).
  */
 export const SWARM_MAINNET_GENESIS: string | null = "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd";
 
 /**
- * Where a SWARM production wallet would look for its indexer.
+ * Where a SWARM production wallet looks for its indexer.
  *
- * A placeholder host, marked not live: the name is reserved and the service is
- * not deployed. It is written down so the shape of the release change is
- * visible, not so anything dials it — nothing does while the profile is
- * unselectable.
+ * Live since the mainnet launch on 2026-09-26: the SWARM mainnet light-wallet
+ * server answers gRPC on lwd-main.swarm.green:8443 (its status feed is on 443,
+ * the reverse of the testnet's ports). See specs/NETWORKS.md in the project
+ * repository for both networks' endpoints.
  */
 export const SWARM_MAINNET_SERVER = "lwd-main.swarm.green:8443";
 
@@ -93,6 +91,12 @@ export type SwarmNetworkProfile = {
   readonly transparentPrefixes: readonly string[];
   /** The indexer this network's wallets start on. */
   readonly defaultServer: string;
+  /**
+   * This network's own block explorer, by its explicit host. The bare
+   * explore.swarm.green is never used: it was created for the testnet before
+   * the mainnet existed and still serves the testnet.
+   */
+  readonly explorerUrl: string;
   /** Whether that indexer exists yet. */
   readonly serverIsLive: boolean;
   /** The light-wallet gRPC port this network's indexer serves. */
@@ -132,6 +136,7 @@ const TESTNET: SwarmNetworkProfile = {
   texHrp: "textest",
   transparentPrefixes: ["tm", "t2"],
   defaultServer: "https://lwd.swarm.green:443",
+  explorerUrl: "https://testnet.explore.swarm.green",
   serverIsLive: true,
   grpcPort: 9067,
   // Published, reproduced twice, and recorded in sdk/swarm-sdk-pin.json and in
@@ -152,6 +157,7 @@ const MAINNET: SwarmNetworkProfile = {
   texHrp: "texswm",
   transparentPrefixes: ["s1", "s3"],
   defaultServer: SWARM_MAINNET_SERVER,
+  explorerUrl: "https://mainnet.explore.swarm.green",
   serverIsLive: true,
   grpcPort: 9068,
   genesis: SWARM_MAINNET_GENESIS,

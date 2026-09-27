@@ -15,10 +15,10 @@ beforeAll(() => {
 // Default block explorer values used by most tests. Individual tests can
 // override any subset by spreading and overriding when building `contextValue`.
 const defaultBlockExplorerValues = {
-  blockExplorerMainnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerMainnetAddress: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetAddress: BlockExplorerEnum.Zcashexplorer,
+  blockExplorerMainnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerMainnetAddress: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetAddress: BlockExplorerEnum.Swarm,
   blockExplorerMainnetTransactionCustom: "",
   blockExplorerTestnetTransactionCustom: "",
   blockExplorerMainnetAddressCustom: "",
@@ -77,10 +77,33 @@ describe("BlockExplorerModal", () => {
     expect(closeModal).toHaveBeenCalledTimes(1);
   });
 
-  it("renders both Mainnet and Testnet sections", () => {
+  it("renders both sections, named for the SWARM networks", () => {
     renderModal();
-    expect(screen.getByText("Mainnet")).toBeInTheDocument();
-    expect(screen.getByText("Testnet")).toBeInTheDocument();
+    expect(screen.getByText("SWARM Mainnet")).toBeInTheDocument();
+    expect(screen.getByText("SWARM Testnet")).toBeInTheDocument();
+    expect(screen.queryByText("Mainnet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Testnet")).not.toBeInTheDocument();
+  });
+
+  it("offers each network's own SWARM explorer under its own heading, selected by default", () => {
+    renderModal();
+    for (const kind of ["transactions", "addresses"]) {
+      const mainnetSelect = screen.getByLabelText(new RegExp(`Block explorer for SWARM Mainnet ${kind}$`, "i"));
+      const testnetSelect = screen.getByLabelText(new RegExp(`Block explorer for SWARM Testnet ${kind}$`, "i"));
+      expect(mainnetSelect).toHaveValue(BlockExplorerEnum.Swarm);
+      expect(testnetSelect).toHaveValue(BlockExplorerEnum.Swarm);
+      expect(mainnetSelect).toHaveTextContent("SWARM Explorer (mainnet.explore.swarm.green)");
+      expect(testnetSelect).toHaveTextContent("SWARM Explorer (testnet.explore.swarm.green)");
+      expect(mainnetSelect).not.toHaveTextContent("testnet.explore.swarm.green");
+      expect(testnetSelect).not.toHaveTextContent("mainnet.explore.swarm.green");
+    }
+  });
+
+  it("the defaults a new install starts with are the SWARM explorers", () => {
+    expect(defaultAppState.blockExplorerMainnetTransaction).toBe(BlockExplorerEnum.Swarm);
+    expect(defaultAppState.blockExplorerMainnetAddress).toBe(BlockExplorerEnum.Swarm);
+    expect(defaultAppState.blockExplorerTestnetTransaction).toBe(BlockExplorerEnum.Swarm);
+    expect(defaultAppState.blockExplorerTestnetAddress).toBe(BlockExplorerEnum.Swarm);
   });
 
   it("calls setBlockExplorer with the form values when Save is clicked", () => {
@@ -133,8 +156,8 @@ describe("BlockExplorerModal", () => {
 
   it("changes Mainnet Transactions selector to Custom and reveals the custom URL input", () => {
     renderModal();
-    const select = screen.getByLabelText(/Block explorer for mainnet transactions$/i);
+    const select = screen.getByLabelText(/Block explorer for SWARM Mainnet transactions$/i);
     fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
-    expect(screen.getByLabelText(/Block explorer for mainnet transactions custom URL/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Block explorer for SWARM Mainnet transactions custom URL/i)).toBeInTheDocument();
   });
 });

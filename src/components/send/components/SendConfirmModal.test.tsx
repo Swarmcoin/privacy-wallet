@@ -32,7 +32,7 @@ beforeAll(() => {
 });
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { native } = require("../../../electronBridge");
+const { native, shell } = require("../../../electronBridge");
 
 const installElectronAPI = (overrides: { loadSettings?: any; authVerify?: any } = {}) => {
   const invoke = jest.fn(async (channel: string) => {
@@ -421,6 +421,39 @@ describe("SendConfirmModal", () => {
         const successCall = openErrorModal.mock.calls.find((c) => c[0] === "Successfully Broadcast Transaction");
         expect(successCall).toBeDefined();
       });
+    });
+
+    // After a send on either SWARM chain, every 'View TXID' opens that chain's
+    // own SWARM explorer. SWARM mainnet used to open Zcash's mainnet explorer.
+    it.each([
+      [ServerChainNameEnum.swarmMainnetChainName, "https://mainnet.explore.swarm.green/transactions/"],
+      [ServerChainNameEnum.swarmTestnetChainName, "https://testnet.explore.swarm.green/transactions/"],
+    ])("on %s, the success modal's View TXID buttons open the SWARM explorer", async (chain, prefix) => {
+      installElectronAPI();
+      (shell.openExternal as jest.Mock).mockClear();
+      const sendTransaction = jest.fn().mockResolvedValue("txid-one, txid-two, txid-three");
+      const openErrorModal = jest.fn();
+      render(<SendConfirmModal {...makeProps({ sendTransaction })} />, {
+        contextOverrides: { openErrorModal, currentWallet: { ...mainnetWallet, chain_name: chain } },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+      let body: React.ReactElement | undefined;
+      await waitFor(() => {
+        const successCall = openErrorModal.mock.calls.find((c) => c[0] === "Successfully Broadcast Transaction");
+        expect(successCall).toBeDefined();
+        body = successCall?.[1];
+      });
+      render(body as React.ReactElement, {
+        contextOverrides: { currentWallet: { ...mainnetWallet, chain_name: chain } },
+      });
+      const buttons = screen.getAllByRole("button", { name: /view txid/i });
+      expect(buttons).toHaveLength(3);
+      buttons.forEach((b) => fireEvent.click(b));
+      expect((shell.openExternal as jest.Mock).mock.calls.map((c) => c[0])).toEqual([
+        `${prefix}txid-one`,
+        `${prefix}txid-two`,
+        `${prefix}txid-three`,
+      ]);
     });
 
     it("opens the success modal with multiple TXIDs", async () => {

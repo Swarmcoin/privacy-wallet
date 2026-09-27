@@ -24,7 +24,6 @@ import {
   ServerClass,
   ServerChainNameEnum,
   ServerSelectionEnum,
-  BlockExplorerEnum,
 } from "../components/appstate";
 import RPC from "../rpc/rpc";
 import { ZcashURITarget } from "../utils/uris";
@@ -40,6 +39,7 @@ import { SwapServiceProvider } from "../context/ContextSwapService";
 
 import { native } from "../electronBridge";
 import { userFacingError } from "../utils/userFacingError";
+import { migrateExplorerChoice, usesMainnetExplorerSetting } from "../utils/explorerLinks";
 import { OrchardMigration } from "../components/orchardMigration";
 import { RPCIronwoodDrainType } from "../rpc/components/RPCIronwoodDrainType";
 import { MixnetView, deriveMixnetView } from "../rpc/components/mixnetPresenter";
@@ -327,17 +327,17 @@ const AppRoutes: React.FC = () => {
       setLocked(hasCode || deviceLock);
       setLockChecked(true);
       if (allSettings && Object.prototype.hasOwnProperty.call(allSettings, "blockexplorer")) {
-        // A previously-selected explorer may have been removed (e.g. Zypherscan).
-        // Fall any obsolete value back to Zcashexplorer across the 4 explorer fields.
+        // A stored choice from an older version may name a Zcash explorer (the
+        // old default was Zcashexplorer) or one that was removed (Zypherscan).
+        // Neither indexes a SWARM chain, so every value but Custom becomes the
+        // SWARM explorer across the 4 explorer fields; see migrateExplorerChoice.
         const cfg = allSettings.blockexplorer;
-        const fallback = (v: unknown): BlockExplorerEnum =>
-          v === "Zypherscan" ? BlockExplorerEnum.Zcashexplorer : (v as BlockExplorerEnum);
         setBlockExplorerState({
           ...cfg,
-          blockExplorerMainnetTransaction: fallback(cfg?.blockExplorerMainnetTransaction),
-          blockExplorerTestnetTransaction: fallback(cfg?.blockExplorerTestnetTransaction),
-          blockExplorerMainnetAddress: fallback(cfg?.blockExplorerMainnetAddress),
-          blockExplorerTestnetAddress: fallback(cfg?.blockExplorerTestnetAddress),
+          blockExplorerMainnetTransaction: migrateExplorerChoice(cfg?.blockExplorerMainnetTransaction),
+          blockExplorerTestnetTransaction: migrateExplorerChoice(cfg?.blockExplorerTestnetTransaction),
+          blockExplorerMainnetAddress: migrateExplorerChoice(cfg?.blockExplorerMainnetAddress),
+          blockExplorerTestnetAddress: migrateExplorerChoice(cfg?.blockExplorerTestnetAddress),
         });
       }
     })();
@@ -690,7 +690,7 @@ const AppRoutes: React.FC = () => {
         // Throws on failure — the catch below surfaces it.
         const txidsResult: string = await runRPCShieldTransparentBalanceToOrchard();
         const txids: string[] = txidsResult.split(", ");
-        const isMainnet = currentWallet?.chain_name === ServerChainNameEnum.mainChainName;
+        const isMainnet = usesMainnetExplorerSetting(currentWallet?.chain_name);
         openErrorModal(
           "Successfully Broadcast Transaction",
           <ShieldResultContent

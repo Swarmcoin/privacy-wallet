@@ -11,6 +11,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import styles from "../Receive.module.css";
 import cstyles from "../../common/Common.module.css";
 import Utils from "../../../utils/utils";
+import { usesMainnetExplorerSetting } from "../../../utils/explorerLinks";
 import { ContextApp } from "../../../context/ContextAppState";
 import {
   ServerChainNameEnum,
@@ -205,10 +206,10 @@ const AddressBlock: React.FC<AddressBlockProps> = ({
                       Utils.openAddress(
                         address_address,
                         currentWallet?.chain_name,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        usesMainnetExplorerSetting(currentWallet?.chain_name)
                           ? blockExplorerMainnetAddress
                           : blockExplorerTestnetAddress,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        usesMainnetExplorerSetting(currentWallet?.chain_name)
                           ? blockExplorerMainnetAddressCustom
                           : blockExplorerTestnetAddressCustom,
                       )

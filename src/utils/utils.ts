@@ -12,6 +12,7 @@ import { native, shell } from "../electronBridge";
 import { ServerChainNameEnum } from "../components/appstate";
 import { SWARM_MAINNET_PROFILE, SWARM_TESTNET_PROFILE, swarmProfileFor } from "./networkProfiles";
 import { checkAddressForChain } from "./swarmAddress";
+import { explorerAddressUrl, explorerTxUrl } from "./explorerLinks";
 
 export const NO_CONNECTION: string = "Could not connect to the Server";
 
@@ -463,35 +464,28 @@ export default class Utils {
   }
 
   /**
-   * The user's chosen block explorer's URL for a Zcash transaction, or an
-   * empty string when no explorer is configured. Returned rather than opened
-   * so callers that need the URL itself, such as the swap trackers list, read
-   * the same setting the History link obeys.
+   * The user's chosen block explorer's URL for a transaction, or an empty
+   * string when there is none. Returned rather than opened so callers that need
+   * the URL itself, such as the swap trackers list, read the same setting the
+   * History link obeys.
+   *
+   * A SWARM chain always gets its own SWARM explorer (or the user's custom
+   * one), never a Zcash explorer: see src/utils/explorerLinks.ts.
    */
   static zecExplorerTxUrl = (
     txid: string,
     chainName: ServerChainNameEnum | undefined,
     blockExplorer: BlockExplorerEnum,
     blockExplorerCustom: string,
-  ): string => {
-    if (chainName === ServerChainNameEnum.swarmTestnetChainName && blockExplorer !== BlockExplorerEnum.Custom) return "";
-    const testnet = chainName === ServerChainNameEnum.testChainName;
-    if (blockExplorer === BlockExplorerEnum.Zcashexplorer) {
-      return testnet
-        ? `https://testnet.zcashexplorer.app/transactions/${txid}`
-        : `https://mainnet.zcashexplorer.app/transactions/${txid}`;
-    }
-    if (blockExplorer === BlockExplorerEnum.Cipherscan) {
-      return testnet ? `https://testnet.cipherscan.app/tx/${txid}` : `https://cipherscan.app/tx/${txid}`;
-    }
-    if (blockExplorer === BlockExplorerEnum.Zexplorer) {
-      return testnet ? `https://zexplorer.app/testnet/tx/${txid}` : `https://zexplorer.app/mainnet/tx/${txid}`;
-    }
-    if (blockExplorer === BlockExplorerEnum.Custom) {
-      return `${blockExplorerCustom}${txid}`;
-    }
-    return "";
-  };
+  ): string => explorerTxUrl(txid, chainName, blockExplorer, blockExplorerCustom);
+
+  /** The same for an address. */
+  static explorerAddressUrl = (
+    address: string,
+    chainName: ServerChainNameEnum | undefined,
+    blockExplorer: BlockExplorerEnum,
+    blockExplorerCustom: string,
+  ): string => explorerAddressUrl(address, chainName, blockExplorer, blockExplorerCustom);
 
   static openTxid = (
     txid: string,
@@ -509,27 +503,7 @@ export default class Utils {
     blockExplorer: BlockExplorerEnum,
     blockExplorerCustom: string,
   ) => {
-    if (chainName === ServerChainNameEnum.swarmTestnetChainName && blockExplorer !== BlockExplorerEnum.Custom) return;
-    if (blockExplorer === BlockExplorerEnum.Zcashexplorer) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://testnet.zcashexplorer.app/search?qs=${address}`);
-      } else {
-        shell.openExternal(`https://mainnet.zcashexplorer.app/search?qs=${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Cipherscan) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://testnet.cipherscan.app/address/${address}`);
-      } else {
-        shell.openExternal(`https://cipherscan.app/address/${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Zexplorer) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://zexplorer.app/testnet/address/${address}`);
-      } else {
-        shell.openExternal(`https://zexplorer.app/mainnet/address/${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Custom) {
-      shell.openExternal(`${blockExplorerCustom}${address}`);
-    }
+    const url = Utils.explorerAddressUrl(address, chainName, blockExplorer, blockExplorerCustom);
+    if (url) shell.openExternal(url);
   };
 }
