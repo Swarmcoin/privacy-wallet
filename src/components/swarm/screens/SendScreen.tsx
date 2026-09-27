@@ -17,7 +17,7 @@ import {
   calculateSpendable,
   trimSpendable,
 } from "../../send/components/sendPipeline";
-import { SWARM_TICKER } from "../../../utils/swarmNetwork";
+import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 
 /**
  * Send, as the mockup lays it out: the payment on the left, what it will cost
@@ -49,6 +49,7 @@ export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSend
     useContext(ContextApp);
 
   const chain: ServerChainNameEnum = currentWallet?.chain_name ?? ServerChainNameEnum.mainChainName;
+  const profile = swarmProfileOrActive(chain);
   const balances = useMemo(() => deriveBalances(totalBalance), [totalBalance]);
 
   // The screen's own draft. It becomes a SendPageState only at the moment the
@@ -71,7 +72,7 @@ export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSend
   const parsedAmount = Number(amount);
   const amountValid = amount.trim().length > 0 && Number.isFinite(parsedAmount) && parsedAmount > 0;
   const addressValid = trimmedTo.length > 0 && addressKind !== undefined;
-  const transparentDestination = isTransparentAddress(trimmedTo);
+  const transparentDestination = isTransparentAddress(trimmedTo, profile);
 
   // Ask the wallet what the address is. Debounced, because it is a call across
   // the bridge and the field is being typed into.

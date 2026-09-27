@@ -150,3 +150,16 @@ describe("the native bridge", () => {
     expect(overreach).toEqual([]);
   });
 });
+
+describe("the addon's SWARM production profile", () => {
+  it("is a candidate for every address parse_address answers", () => {
+    // The mainnet.2 to .5 defect in one line: a candidate list with no
+    // production entry, so every swm1/s1/s3 answered "Invalid address". Read
+    // from the source so a revert is a red test in the renderer suite too,
+    // and not only in the Rust suite the workflows run.
+    const lib = read("native/src/lib.rs");
+    const body = lib.match(/fn address_chain_profiles\(\) -> \[ChainType; \d+\] \{([\s\S]*?)\n\}/);
+    expect(body).not.toBeNull();
+    expect(body?.[1]).toContain("ChainType::SwarmMainnet(");
+  });
+});

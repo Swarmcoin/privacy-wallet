@@ -60,6 +60,16 @@ export const resolveActiveProfile = (profileId: string): SwarmNetworkProfile => 
 
 export const ACTIVE_SWARM_PROFILE: SwarmNetworkProfile = resolveActiveProfile(BUILD_PROFILE_ID);
 
+/**
+ * The profile of the network a wallet is on, or this build's own when the
+ * wallet's chain is not a SWARM one (or there is no wallet yet).
+ *
+ * A mainnet build can hold a wallet made on SWARM Testnet, and an address
+ * typed into that wallet is judged by that wallet's network, not the build's.
+ */
+export const swarmProfileOrActive = (chain: string | undefined | null): SwarmNetworkProfile =>
+  swarmProfileFor(chain) ?? ACTIVE_SWARM_PROFILE;
+
 /** The light-wallet chain label this build's network reports. */
 export const SWARM_CHAIN: ServerChainNameEnum = ACTIVE_SWARM_PROFILE.chainLabel;
 

@@ -5,6 +5,8 @@ import TransparentAddressClass from "../appstate/classes/TransparentAddressClass
 import { ValueTransferKindEnum } from "../appstate/enums/ValueTransferKindEnum";
 import { ValueTransferPoolEnum } from "../appstate/enums/ValueTransferPoolEnum";
 import { ValueTransferStatusEnum } from "../appstate/enums/ValueTransferStatusEnum";
+import { SwarmNetworkProfile } from "../../utils/networkProfiles";
+import { ACTIVE_SWARM_PROFILE } from "../../utils/swarmNetwork";
 
 /**
  * The numbers and rows the SWARM screens draw, derived from wallet state.
@@ -133,13 +135,39 @@ const SHIELDED_POOL_SET: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * A transparent address on this chain: `tm…` on test networks, `t1`/`t3` on
- * main. Used to decide whether a *send* was public, which is a fact about the
- * address it went to and nothing else.
+ * Upstream Zcash's transparent shapes. No SWARM wallet can pay one — the
+ * address pre-check refuses them by name — but a transparent address is
+ * transparent whichever network it belongs to, and an address this cannot
+ * place must never be drawn as private.
  */
-export function isTransparentAddress(address: string | undefined): boolean {
+const UPSTREAM_TRANSPARENT_PREFIXES = ["t1", "t3"] as const;
+const UPSTREAM_TEX_HRP = "tex";
+
+/**
+ * A transparent address on `profile`'s network — its Base58 prefixes and its
+ * TEX HRP, from the profile rather than written out here: `s1…`, `s3…` and
+ * `texswm1…` on SWARM Mainnet, `tm…`, `t2…` and `textest1…` on SWARM Testnet.
+ * Used to decide whether a *send* is public, which is a fact about the
+ * address it goes to and nothing else.
+ *
+ * Until 0.1.0-mainnet.6 this was `/^(tm|t1|t3|tex)/i`, so on SWARM Mainnet a
+ * payment to `s1…` was drawn as private: no warning that the address and the
+ * amount become public, and "shielded" on the row afterwards.
+ *
+ * Base58 prefixes are compared exactly, because Base58 is case-sensitive and
+ * `S1…` is not an `s1…` address; a TEX HRP is compared without case, because
+ * bech32m may be written in capitals.
+ */
+export function isTransparentAddress(
+  address: string | undefined,
+  profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): boolean {
   if (!address) return false;
-  return /^(tm|t1|t3|tex)/i.test(address.trim());
+  const value = address.trim();
+  const lower = value.toLowerCase();
+  const prefixes = [...profile.transparentPrefixes, ...UPSTREAM_TRANSPARENT_PREFIXES];
+  const texHrps = [profile.texHrp, UPSTREAM_TEX_HRP];
+  return prefixes.some((prefix) => value.startsWith(prefix)) || texHrps.some((hrp) => lower.startsWith(`${hrp}1`));
 }
 
 /**
@@ -150,7 +178,7 @@ export function isTransparentAddress(address: string | undefined): boolean {
  * are unknown is judged by its recipient address — the one other piece of
  * evidence there is.
  */
-export function visibilityOf(vt: ValueTransferClass): SwarmVisibility {
+export function visibilityOf(vt: ValueTransferClass, profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE): SwarmVisibility {
   const pools = [...(vt.poolsReceived ?? []), ...(vt.poolsSentFrom ?? [])];
   const touchedTransparent = pools.includes(ValueTransferPoolEnum.transparent);
   const touchedShielded = pools.some((p) => SHIELDED_POOL_SET.has(p));
@@ -159,7 +187,7 @@ export function visibilityOf(vt: ValueTransferClass): SwarmVisibility {
   if (touchedShielded) return "shielded";
 
   // No pool information. The recipient address is the only other evidence.
-  return isTransparentAddress(vt.address) ? "revealed" : "shielded";
+  return isTransparentAddress(vt.address, profile) ? "revealed" : "shielded";
 }
 
 /**
@@ -235,8 +263,12 @@ function stateFor(vt: ValueTransferClass, visibility: SwarmVisibility): string {
   return visibility === "revealed" ? "REVEALED" : "SHIELDED";
 }
 
-export function toActivityRow(vt: ValueTransferClass, index: number): SwarmActivityRow {
-  const visibility = visibilityOf(vt);
+export function toActivityRow(
+  vt: ValueTransferClass,
+  index: number,
+  profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): SwarmActivityRow {
+  const visibility = visibilityOf(vt, profile);
   const mined = isBlockReward(vt);
   const { title, direction } = titleFor(vt);
   const sign = direction === "in" ? "+" : direction === "out" ? "−" : "";
@@ -275,8 +307,15 @@ export function toActivityRow(vt: ValueTransferClass, index: number): SwarmActiv
   };
 }
 
-export function toActivityRows(vts: ValueTransferClass[]): SwarmActivityRow[] {
-  return (vts ?? []).map(toActivityRow);
+/**
+ * Every transfer as a row, judged against `profile`'s address shapes — the
+ * network of the wallet the transfers belong to, when the caller knows it.
+ */
+export function toActivityRows(
+  vts: ValueTransferClass[],
+  profile: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): SwarmActivityRow[] {
+  return (vts ?? []).map((vt, index) => toActivityRow(vt, index, profile));
 }
 
 /** The filters the Activity screen offers, and what each one keeps. */

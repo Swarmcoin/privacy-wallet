@@ -20,6 +20,19 @@ import {
   toActivityRows,
   visibilityOf,
 } from "./swarmModel";
+import { SWARM_MAINNET_PROFILE, SWARM_TESTNET_PROFILE } from "../../utils/networkProfiles";
+import { ACTIVE_SWARM_PROFILE } from "../../utils/swarmNetwork";
+
+// SWARM Mainnet encodings. The first two are the FUEL payout address and a
+// transparent address the owner could not pay on 2026-09-27; the P2SH is the
+// Mining fund's published address (resources/treasury/Mining.policy.json).
+// The TEX is only the shape — this function reads prefixes, not checksums.
+// Nothing is ever sent to any of them from a test.
+const SWARM_MAINNET_UA =
+  "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+const SWARM_MAINNET_T = "s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk";
+const SWARM_MAINNET_P2SH = "s3R1bWZPrRCtKL122ZN6uySu1ewk2ku849C";
+const SWARM_MAINNET_TEX = "texswm1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 
 const UTEST = "utest1vjdkw7r3h2mq9m0y8xg0n6w4c2eqk5t8v7lz3h9n4p2r6s0t5v9x3z7b1d5f9h3k7m1q5w9";
 const TM = "tmQ8xR4vK2mE7zD6yP3aH5wR9tCL2nFs0X";
@@ -114,6 +127,43 @@ describe("isTransparentAddress", () => {
   it("does not mistake a unified address for a transparent one", () => {
     expect(isTransparentAddress(UTEST)).toBe(false);
     expect(isTransparentAddress(undefined)).toBe(false);
+  });
+
+  // Until 0.1.0-mainnet.6 only `tm|t1|t3|tex` counted, so on SWARM Mainnet a
+  // payment to `s1…` or `s3…` was drawn as private: no "the amount and this
+  // address will be public" warning, a memo field for an address that cannot
+  // carry one, and "shielded" on the Activity row afterwards.
+  it("knows SWARM Mainnet's transparent shapes: s1, s3 and texswm", () => {
+    expect(isTransparentAddress(SWARM_MAINNET_T, SWARM_MAINNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress(SWARM_MAINNET_P2SH, SWARM_MAINNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress(SWARM_MAINNET_TEX, SWARM_MAINNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress(SWARM_MAINNET_TEX.toUpperCase(), SWARM_MAINNET_PROFILE)).toBe(true);
+  });
+
+  it("does not call a SWARM Mainnet shielded address transparent", () => {
+    expect(isTransparentAddress(SWARM_MAINNET_UA, SWARM_MAINNET_PROFILE)).toBe(false);
+    expect(isTransparentAddress("zswmsapling1qqqqqqqqqqqqqqqqqqqq", SWARM_MAINNET_PROFILE)).toBe(false);
+  });
+
+  it("knows SWARM Testnet's shapes, P2SH included", () => {
+    expect(isTransparentAddress(TM, SWARM_TESTNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress("t2UNzUUx8mWBCRYPRezvA363EYXyEpHokyi".slice(0, 12), SWARM_TESTNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress("textest1qqqqqqqqqqqqqqqqqqqq", SWARM_TESTNET_PROFILE)).toBe(true);
+    expect(isTransparentAddress("swarm1qqqqqqqqqqqqqqqqqqqq", SWARM_TESTNET_PROFILE)).toBe(false);
+  });
+
+  it("reads Base58 prefixes exactly: `S1…` is not an `s1…` address", () => {
+    expect(isTransparentAddress(SWARM_MAINNET_T.replace(/^s1/, "S1"), SWARM_MAINNET_PROFILE)).toBe(false);
+  });
+
+  it("answers for the network this build is for when asked without one", () => {
+    expect(isTransparentAddress(ACTIVE_SWARM_PROFILE.transparentPrefixes[0] + "abc")).toBe(true);
+  });
+
+  it("calls a past send to an s1 address revealed when the pools are unknown", () => {
+    const sent = vt({ type: ValueTransferKindEnum.sent, address: SWARM_MAINNET_T });
+    expect(visibilityOf(sent, SWARM_MAINNET_PROFILE)).toBe("revealed");
+    expect(toActivityRow(sent, 0, SWARM_MAINNET_PROFILE).state).toBe("REVEALED");
   });
 });
 

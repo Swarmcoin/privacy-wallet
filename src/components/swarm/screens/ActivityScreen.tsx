@@ -13,7 +13,7 @@ import {
 } from "../swarmModel";
 import { ContextApp } from "../../../context/ContextAppState";
 import { useCopy } from "../../common/useCopy";
-import { SWARM_TICKER } from "../../../utils/swarmNetwork";
+import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 
 /**
  * Activity: every transfer this wallet knows about, with a detail panel.
@@ -146,13 +146,14 @@ const DetailPanel: React.FC<{ row: SwarmActivityRow | null; hidden: boolean }> =
 
 export const ActivityScreen: React.FC = () => {
   const { hidden } = useContext(SwarmUiContext);
-  const { valueTransfers } = useContext(ContextApp);
+  const { valueTransfers, currentWallet } = useContext(ContextApp);
+  const profile = swarmProfileOrActive(currentWallet?.chain_name);
 
   const [filter, setFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  const rows = useMemo(() => toActivityRows(valueTransfers), [valueTransfers]);
+  const rows = useMemo(() => toActivityRows(valueTransfers, profile), [valueTransfers, profile]);
   const anyMined = rows.some((r) => r.mined);
   const filters = FILTERS.filter((f) => f.key !== "mined" || anyMined);
   const visible = useMemo(() => searchActivity(applyFilter(rows, filter), query), [rows, filter, query]);
