@@ -16,7 +16,22 @@
  */
 
 const path = require("path");
+const { createRequire } = require("module");
 const { findAddon } = require("./paths");
+
+/**
+ * The addon is loaded with an explicit `createRequire`, not with the bare
+ * `require` above.
+ *
+ * Running from source the two are the same thing. In the single-file build
+ * (`sea/`) they are not: inside a Node single executable the injected script's
+ * `require` resolves BUILT-IN MODULES ONLY, and the wallet core is never
+ * anything but a file path, so it would fail before the addon was ever opened.
+ * `createRequire(__filename)` gives back a file-based require. In the
+ * executable `__filename` is `process.execPath` — an absolute path — so it
+ * resolves next to the executable, which is exactly where native.node ships.
+ */
+const requireNative = createRequire(__filename);
 
 let cached = null;
 let cachedPath = null;
@@ -34,7 +49,7 @@ function loadAddon(hostRoot) {
     return null;
   }
   try {
-    cached = require(found);
+    cached = requireNative(found);
     cachedPath = found;
   } catch (e) {
     loadError = new Error(`The SWARM wallet core at ${found} could not be loaded: ${e && e.message}`);
