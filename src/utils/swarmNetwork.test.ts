@@ -56,18 +56,31 @@ describe("the network this build is for", () => {
   // to call itself the testnet one.
   it("has one identity per network, and they are different applications", () => {
     expect(BUILD_IDENTITIES["swarm-mainnet"]).toMatchObject({
-      version: "0.1.0-mainnet.2",
       productName: "SWARM Wallet",
       appId: "green.swarm.wallet",
       packageName: "swarm-wallet-mainnet",
     });
     expect(BUILD_IDENTITIES["swarm-testnet"]).toMatchObject({
-      version: "0.1.0-testnet.9",
       productName: "SWARM Wallet (Testnet)",
       appId: "green.swarm.wallet.testnet",
       packageName: "swarm-wallet-testnet",
     });
     expect(BUILD_IDENTITIES["swarm-mainnet"].appId).not.toBe(BUILD_IDENTITIES["swarm-testnet"].appId);
+  });
+
+  // The exact version is not asserted above, and deliberately so: it changes
+  // on every release, and a test that has to be edited to ship is a test
+  // people edit without reading. It had gone stale exactly that way — the
+  // build moved to 0.1.0-mainnet.3 and the assertion still said mainnet.2.
+  // What matters here is the property that cannot go stale: each version
+  // names its own network, so a mainnet build cannot be taken for the
+  // testnet one by its version string any more than by its appId.
+  it("gives each network a version that names that network", () => {
+    expect(BUILD_IDENTITIES["swarm-mainnet"].version).toMatch(/-mainnet\.\d+$/);
+    expect(BUILD_IDENTITIES["swarm-testnet"].version).toMatch(/-testnet\.\d+$/);
+    expect(BUILD_IDENTITIES["swarm-mainnet"].version).not.toBe(
+      BUILD_IDENTITIES["swarm-testnet"].version,
+    );
   });
 
   // A build branded for a network it cannot reach would be a build nobody can
