@@ -116,7 +116,7 @@ jobs:
       - name: Check the treasury custody surface
         run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/components/swarm/screens/TreasuryScreen.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
       - name: Verify network, endpoint and server-selection boundaries
-        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/utils/addressKind.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx
       - name: Build the pinned wallet SDK adapter
         run: yarn neon-win-x64
       # The addon's treasury tests: the published fixture scalars reproduce

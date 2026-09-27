@@ -108,8 +108,7 @@ export type SwarmServerPreset = {
 };
 
 /** A bare `host:port` from a network manifest, as a URI a client can dial. */
-const asUri = (server: string): string =>
-  /^[a-z][a-z0-9+.-]*:\/\//i.test(server) ? server : `https://${server}`;
+const asUri = (server: string): string => (/^[a-z][a-z0-9+.-]*:\/\//i.test(server) ? server : `https://${server}`);
 
 /** The mainnet indexer, as the wallet dials it. */
 export const SWARM_MAINNET_SERVER_URI = asUri(SWARM_MAINNET_PROFILE.defaultServer);
@@ -152,6 +151,46 @@ export const SWARM_SERVER_PRESETS: readonly SwarmServerPreset[] = [
     note: "Needs a SwarmTestnet indexer running on this computer. The SWARM Node mining app does not include one yet.",
   },
 ];
+
+/**
+ * The networks a new or restored wallet may be made on, in this build.
+ *
+ * A mainnet build offers SWARM Mainnet and nothing else. The testnet has its
+ * own build, installed beside this one under its own name, and both networks
+ * count in SWM: a testnet wallet made inside the mainnet application is a
+ * wallet whose coins look exactly like real ones and are worth nothing. A
+ * testnet build offers both, as it always has. Wallets already on this
+ * computer are not affected — this is only what the create and restore
+ * screens offer.
+ */
+export const profilesForNewWallets = (
+  active: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): readonly SwarmNetworkProfile[] =>
+  active.id === SwarmProfileIdEnum.mainnet ? [SWARM_MAINNET_PROFILE] : [SWARM_MAINNET_PROFILE, SWARM_TESTNET_PROFILE];
+
+/** The server presets the create and restore screens offer, in this build. */
+export const serverPresetsForNewWallets = (
+  active: SwarmNetworkProfile = ACTIVE_SWARM_PROFILE,
+): readonly SwarmServerPreset[] => {
+  const offered = profilesForNewWallets(active).map((profile) => profile.id);
+  return SWARM_SERVER_PRESETS.filter((preset) => offered.includes(preset.profileId));
+};
+
+/**
+ * What an address field's placeholder says to paste: the shapes a payment on
+ * `profile`'s network goes to. `swm1… or s1…` on SWARM Mainnet, and on SWARM
+ * Testnet the sentence it always had, `swarm1…, utest1… or tm…`.
+ *
+ * Until 0.1.0-mainnet.6 the testnet's sentence was written into every screen,
+ * so the mainnet wallet asked its user for a testnet address.
+ */
+export const addressPlaceholderFor = (profile: SwarmNetworkProfile): string => {
+  const shapes = [
+    ...[profile.unifiedHrp, ...profile.legacyUnifiedHrps].map((hrp) => `${hrp}1…`),
+    `${profile.transparentPrefixes[0]}…`,
+  ];
+  return `${shapes.slice(0, -1).join(", ")} or ${shapes[shapes.length - 1]}`;
+};
 
 /** The presets that belong to one SWARM network. */
 export const swarmPresetsForChain = (chain: ServerChainNameEnum | "" | undefined): readonly SwarmServerPreset[] => {

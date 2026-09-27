@@ -11,6 +11,15 @@ import selectFastestServer from "../../utils/selectFastestServer";
 import { SWARM_NO_AUTOMATIC_REASON, SWARM_SERVER_PRESETS, swarmDefaultServerFor } from "../../utils/swarmNetwork";
 import { SWARM_MAINNET_PROFILE } from "../../utils/networkProfiles";
 
+// The testnet build's create screen, which offers both SWARM networks and all
+// their presets — pinned, because a mainnet CI run writes `swarm-mainnet` into
+// src/buildProfile.json before any test runs, and a mainnet build offers
+// SWARM Mainnet alone (0.1.0-mainnet.6). That build's screen is rendered, and
+// a wallet created on it, in src/mainnetWording.test.tsx.
+jest.mock("../../buildProfile.json", () => ({
+  ...jest.requireActual("../../buildProfile.json"),
+  profile: "swarm-testnet",
+}));
 jest.mock("../../electronBridge");
 jest.mock("../../utils/fetchServerList");
 jest.mock("../../rpc/rpc", () => ({ __esModule: true, default: { deinitialize: jest.fn() } }));

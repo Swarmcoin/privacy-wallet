@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "../../../test-utils";
 import BlockExplorerModal from "./BlockExplorerModal";
 import { BlockExplorerEnum } from "../../appstate";
 import { ContextApp, defaultAppState } from "../../../context/ContextAppState";
+import { ACTIVE_SWARM_PROFILE } from "../../../utils/swarmNetwork";
 
 beforeAll(() => {
   const div = document.createElement("div");
@@ -77,10 +78,18 @@ describe("BlockExplorerModal", () => {
     expect(closeModal).toHaveBeenCalledTimes(1);
   });
 
-  it("renders both Mainnet and Testnet sections", () => {
+  // Which build this runs as is whatever `src/buildProfile.json` says: the
+  // repository's own profile is the testnet, and a mainnet CI run writes
+  // `swarm-mainnet` there first. A mainnet build shows no "Testnet" section
+  // (0.1.0-mainnet.6); src/mainnetWording.test.tsx renders that case on every run.
+  it("renders the Mainnet section, and the Testnet one only on a testnet build", () => {
     renderModal();
     expect(screen.getByText("Mainnet")).toBeInTheDocument();
-    expect(screen.getByText("Testnet")).toBeInTheDocument();
+    if (ACTIVE_SWARM_PROFILE.id === "swarm-mainnet") {
+      expect(screen.queryByText("Testnet")).toBeNull();
+    } else {
+      expect(screen.getByText("Testnet")).toBeInTheDocument();
+    }
   });
 
   it("calls setBlockExplorer with the form values when Save is clicked", () => {

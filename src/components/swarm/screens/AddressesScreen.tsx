@@ -9,6 +9,7 @@ import { useCopy } from "../../common/useCopy";
 import { ZcashURITarget } from "../../../utils/uris";
 import Utils from "../../../utils/utils";
 import routes from "../../../constants/routes.json";
+import { addressPlaceholderFor, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 
 /**
  * Addresses: the ones this wallet owns, and the ones it knows by name.
@@ -61,6 +62,7 @@ export const AddressesScreen: React.FC<AddressesScreenProps> = ({ addAddressBook
     useContext(ContextApp);
 
   const chain: ServerChainNameEnum = currentWallet?.chain_name ?? ServerChainNameEnum.mainChainName;
+  const profile = swarmProfileOrActive(chain);
   const own = useMemo(
     () => deriveOwnAddresses(addressesUnified, addressesTransparent),
     [addressesUnified, addressesTransparent],
@@ -164,7 +166,7 @@ export const AddressesScreen: React.FC<AddressesScreenProps> = ({ addAddressBook
                 value={address}
                 spellCheck={false}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="swarm1…, utest1… or tm…"
+                placeholder={addressPlaceholderFor(profile)}
               />
             </div>
             <div className={styles.addContactActions}>

@@ -38,7 +38,12 @@ describe("getAddressKind on SWARM Mainnet", () => {
   afterEach(() => mockParse.mockReset());
 
   it("accepts a swm1 address the addon names swarm-mainnet", async () => {
-    answers({ status: "success", chain_name: "swarm-mainnet", address_kind: "unified", receivers_available: ["orchard"] });
+    answers({
+      status: "success",
+      chain_name: "swarm-mainnet",
+      address_kind: "unified",
+      receivers_available: ["orchard"],
+    });
     await expect(Utils.getAddressKind(FUEL_PAYOUT_UA, MAINNET)).resolves.toBe(AddressKindEnum.unified);
     expect(mockParse).toHaveBeenCalledWith(FUEL_PAYOUT_UA);
   });

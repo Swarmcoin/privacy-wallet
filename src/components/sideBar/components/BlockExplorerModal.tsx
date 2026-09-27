@@ -4,6 +4,18 @@ import cstyles from "../../common/Common.module.css";
 import { BlockExplorerEnum } from "../../appstate";
 import { ContextApp } from "../../../context/ContextAppState";
 import ExplorerRow from "./ExplorerRow";
+import { ACTIVE_SWARM_PROFILE } from "../../../utils/swarmNetwork";
+import { SwarmProfileIdEnum } from "../../../utils/networkProfiles";
+
+/**
+ * Whether this build shows the explorers for upstream's test network.
+ *
+ * Not on a mainnet build: a "Testnet" heading in the mainnet wallet's
+ * settings is test-network wording about a network this build never opens a
+ * wallet on (0.1.0-mainnet.6). The settings themselves are untouched, so a
+ * testnet build shows and saves them exactly as before.
+ */
+const SHOW_TESTNET_EXPLORERS = ACTIVE_SWARM_PROFILE.id !== SwarmProfileIdEnum.mainnet;
 
 type BlockExplorerModalProps = {
   modalIsOpen: boolean;
@@ -145,29 +157,31 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
         />
       </div>
 
-      <div className={cstyles.well} style={{ marginTop: 16 }}>
-        <div className={cstyles.small} style={{ opacity: 0.6, marginBottom: 12 }}>
-          Testnet
+      {SHOW_TESTNET_EXPLORERS && (
+        <div className={cstyles.well} style={{ marginTop: 16 }}>
+          <div className={cstyles.small} style={{ opacity: 0.6, marginBottom: 12 }}>
+            Testnet
+          </div>
+          <ExplorerRow
+            label="Transactions"
+            ariaLabel="Block explorer for testnet transactions"
+            customPlaceholder="https://testnet.block-explorer/tx/"
+            value={blockExplorerTestnetTransaction}
+            onChange={setBlockExplorerTestnetTransaction}
+            customValue={blockExplorerTestnetTransactionCustom}
+            onCustomChange={setBlockExplorerTestnetTransactionCustom}
+          />
+          <ExplorerRow
+            label="Addresses"
+            ariaLabel="Block explorer for testnet addresses"
+            customPlaceholder="https://testnet.block-explorer/address/"
+            value={blockExplorerTestnetAddress}
+            onChange={setBlockExplorerTestnetAddress}
+            customValue={blockExplorerTestnetAddressCustom}
+            onCustomChange={setBlockExplorerTestnetAddressCustom}
+          />
         </div>
-        <ExplorerRow
-          label="Transactions"
-          ariaLabel="Block explorer for testnet transactions"
-          customPlaceholder="https://testnet.block-explorer/tx/"
-          value={blockExplorerTestnetTransaction}
-          onChange={setBlockExplorerTestnetTransaction}
-          customValue={blockExplorerTestnetTransactionCustom}
-          onCustomChange={setBlockExplorerTestnetTransactionCustom}
-        />
-        <ExplorerRow
-          label="Addresses"
-          ariaLabel="Block explorer for testnet addresses"
-          customPlaceholder="https://testnet.block-explorer/address/"
-          value={blockExplorerTestnetAddress}
-          onChange={setBlockExplorerTestnetAddress}
-          customValue={blockExplorerTestnetAddressCustom}
-          onCustomChange={setBlockExplorerTestnetAddressCustom}
-        />
-      </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
         <button type="button" className={cstyles.primarybutton} onClick={handleCancel}>
