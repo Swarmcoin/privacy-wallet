@@ -1,0 +1,10 @@
+{
+  "name": "swarm-rewards-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Not a package: this file only tells Node that the extension's .js files are ES modules, so the ledger and link rules can be tested outside a browser. Chromium ignores it.",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

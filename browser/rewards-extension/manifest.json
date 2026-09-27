@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "SWARM Rewards",
+  "short_name": "SWARM Rewards",
+  "version": "0.1.0",
+  "description": "Opt-in. Counts the days you use the browser, on this computer only. Nothing about your browsing leaves this device. Rewards are not live yet.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArkO/dgd0jAvUZkPrsMhAeUFWHLVzbvmOzcJnCo288wc57YoK5CbgSvWnjyHzGQgHDHtxfL3413z3CmWuPB7AxInCt4Ff0+Ayu2vLWSrKDTuX5FlqjoLVpcVNKfqx7H8WJP4tdMm0VNNp/InqjDM3UxjCcqDK9tiONnHPaeHE9HwKKlv1jNz/pF+HGEawbEEb465RBx2ROIUP0kFYNgDqtJkSHTHrT2KZeZXmYMnPOuWSaRIPKcTBZpK1IcHgkJeWJR4jjM9DgnZdeJwb3q0lHzWi8zLti14QzvcNU9RvmEWP3CA4EQNk41QZoesGN02hQkaYQgNQoN1YfmlUdaX6/wIDAQAB",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": [],
+  "action": {
+    "default_title": "SWARM Rewards",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/rewards-16.png",
+      "32": "icons/rewards-32.png",
+      "48": "icons/rewards-48.png",
+      "128": "icons/rewards-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/rewards-16.png",
+    "32": "icons/rewards-32.png",
+    "48": "icons/rewards-48.png",
+    "128": "icons/rewards-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'; img-src 'self'; font-src 'self'; style-src 'self'"
+  },
+  "content_scripts": [],
+  "web_accessible_resources": [],
+  "externally_connectable": {
+    "ids": ["gmmgmodmgnigcgboccjelpgedejejfap"]
+  }
+}

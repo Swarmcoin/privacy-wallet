@@ -1,0 +1,538 @@
+/*
+ * SWARM Rewards, in the browser.
+ *
+ * The same tokens, type and voice as the SWARM Wallet extension next to it
+ * (browser/extension/swarm.css), so the two read as one product; the rules at
+ * the end are the few things only this extension has: the opt-in switch, the
+ * day count, and the wide page. Fonts are the same bundled files, copied, not
+ * fetched: an extension that pulls a stylesheet from Google tells Google every
+ * time it is opened.
+ */
+
+@font-face {
+  font-family: "Sora";
+  src: url("fonts/sora-600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope";
+  src: url("fonts/manrope-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope";
+  src: url("fonts/manrope-600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/jetbrains-mono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --hive-orange: #ff8a1f;
+  --honey: #ffb020;
+  --clear-blue: #6fb6ff;
+  --void: #0a0908;
+  --base: #100e0c;
+  --surface: #171411;
+  --surface-2: #1f1b17;
+  --wax: #f5efe4;
+  --mid: #a89f92;
+  --low: #6b645a;
+  --success: #3dd68c;
+  --danger: #ff5c5c;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--base);
+  color: var(--wax);
+  font-family: "Manrope", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Sora", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 17px;
+}
+h2 {
+  font-size: 15px;
+}
+
+p {
+  margin: 0 0 12px;
+  color: var(--mid);
+}
+
+.mono,
+.amount,
+.address {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ── layout ───────────────────────────────────────────────────────────── */
+
+.popup {
+  width: 360px;
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel {
+  width: 100%;
+  padding: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--void);
+  border-bottom: 1px solid #241f1a;
+}
+
+.topbar img {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
+.topbar .title {
+  font-family: "Sora", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+.network {
+  font-size: 11px;
+  color: var(--mid);
+  border: 1px solid #2c261f;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.network.testnet {
+  color: var(--clear-blue);
+  border-color: #244055;
+}
+
+.content {
+  flex: 1;
+  padding: 16px;
+}
+
+.section {
+  background: var(--surface);
+  border: 1px solid #241f1a;
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row.between {
+  justify-content: space-between;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ── balance ──────────────────────────────────────────────────────────── */
+
+.balance-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--low);
+}
+
+.balance {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 26px;
+  color: var(--hive-orange);
+  margin: 4px 0 2px;
+  word-break: break-all;
+}
+
+.balance.masked {
+  color: var(--honey);
+}
+
+.balance-sub {
+  font-size: 12px;
+  color: var(--mid);
+}
+
+.pending {
+  color: var(--honey);
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+
+button {
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid #2c261f;
+  background: var(--surface-2);
+  color: var(--wax);
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #3a3229;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--hive-orange);
+  border-color: var(--hive-orange);
+  color: #1b1004;
+}
+
+button.primary:hover {
+  background: var(--honey);
+  border-color: var(--honey);
+}
+
+button.ghost {
+  background: transparent;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: #4a2a2a;
+  background: transparent;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: var(--hive-orange);
+  padding: 0;
+  font-size: 12px;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.buttons.three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+input,
+textarea,
+select {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  width: 100%;
+  background: var(--void);
+  border: 1px solid #2c261f;
+  border-radius: 8px;
+  color: var(--wax);
+  padding: 9px 10px;
+}
+
+input:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--hive-orange);
+}
+
+label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--low);
+  margin-bottom: 4px;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* ── status, messages ─────────────────────────────────────────────────── */
+
+.note {
+  font-size: 12px;
+  color: var(--mid);
+}
+
+.error {
+  font-size: 12px;
+  color: var(--danger);
+  border: 1px solid #4a2a2a;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #1a1210;
+}
+
+.ok {
+  font-size: 12px;
+  color: var(--success);
+}
+
+.sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--mid);
+  padding: 8px 16px;
+  border-top: 1px solid #241f1a;
+  background: var(--void);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--low);
+  flex: 0 0 auto;
+}
+
+.dot.syncing {
+  background: var(--honey);
+}
+
+.dot.synced {
+  background: var(--success);
+}
+
+.dot.error {
+  background: var(--danger);
+}
+
+/* ── address and QR ───────────────────────────────────────────────────── */
+
+.address {
+  font-size: 11px;
+  word-break: break-all;
+  color: var(--wax);
+  background: var(--void);
+  border: 1px solid #2c261f;
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.qr {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.qr canvas {
+  image-rendering: pixelated;
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px;
+}
+
+/* ── history ──────────────────────────────────────────────────────────── */
+
+.transfer {
+  border-bottom: 1px solid #241f1a;
+  padding: 10px 0;
+}
+
+.transfer:last-child {
+  border-bottom: none;
+}
+
+.transfer .kind {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--low);
+}
+
+.transfer .value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 14px;
+}
+
+.transfer .value.in {
+  color: var(--success);
+}
+
+.transfer .value.out {
+  color: var(--wax);
+}
+
+.transfer .txid {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--low);
+  word-break: break-all;
+}
+
+/* ── seed backup ──────────────────────────────────────────────────────── */
+
+.seed {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 2;
+  background: var(--void);
+  border: 1px solid #3a2a14;
+  border-radius: 8px;
+  padding: 12px;
+  word-spacing: 6px;
+  color: var(--honey);
+}
+
+.warning {
+  border: 1px solid #3a2a14;
+  background: #191308;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--honey);
+}
+
+.steps {
+  font-size: 11px;
+  color: var(--low);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* ── rewards: the switch, the count, the page ─────────────────────────── */
+
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.switch input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--hive-orange);
+  cursor: pointer;
+}
+
+.switch .switch-text {
+  font-weight: 600;
+  color: var(--wax);
+  font-size: 13px;
+}
+
+.count {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 30px;
+  color: var(--hive-orange);
+  margin: 4px 0 0;
+}
+
+.count.off {
+  color: var(--low);
+}
+
+.linked {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--wax);
+  word-break: break-all;
+}
+
+.linked.none {
+  color: var(--low);
+}
+
+.claim-note {
+  font-size: 12px;
+  color: var(--honey);
+  margin: 10px 0 0;
+}
+
+.fine {
+  font-size: 11px;
+  color: var(--low);
+  margin: 6px 0 0;
+}
+
+ul.plain {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--mid);
+  font-size: 12px;
+}
+
+ul.plain li {
+  margin-bottom: 4px;
+}
+
+.footer {
+  border-top: 1px solid #241f1a;
+  padding: 10px 16px;
+  font-size: 11px;
+  color: var(--low);
+  background: var(--void);
+}
+
+.gap-top {
+  margin-top: 12px;
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Rewards</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="popup">
+      <div class="topbar">
+        <img src="icons/rewards-128.png" alt="" />
+        <span class="title">SWARM Rewards</span>
+        <span class="spacer"></span>
+        <span class="network" id="linked-network"></span>
+      </div>
+
+      <div class="content">
+        <div class="section">
+          <label class="switch" for="optin">
+            <input type="checkbox" id="optin" />
+            <span class="switch-text">Take part in SWARM Rewards</span>
+          </label>
+          <p class="note" id="optin-note"></p>
+        </div>
+
+        <div class="section">
+          <span class="balance-label">Active days</span>
+          <div class="count off" id="days">0</div>
+          <div class="balance-sub" id="days-label"></div>
+        </div>
+
+        <div class="section">
+          <span class="balance-label">Linked wallet</span>
+          <div class="linked none" id="linked">no wallet linked</div>
+          <div class="buttons gap-top">
+            <button id="link" disabled>Link your SWARM wallet</button>
+            <button id="claim" disabled>Claim</button>
+          </div>
+          <p class="claim-note" id="claim-note"></p>
+        </div>
+
+        <div id="message" class="hidden"></div>
+
+        <div class="buttons">
+          <button id="open-page" class="ghost">What is recorded</button>
+          <button id="forget" class="danger">Forget everything</button>
+        </div>
+      </div>
+
+      <div class="footer">Nothing about your browsing leaves this computer.</div>
+    </div>
+    <script type="module" src="page.js"></script>
+  </body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Rewards</title>
+    <link rel="stylesheet" href="swarm.css" />
+  </head>
+  <body>
+    <div class="topbar">
+      <img src="icons/rewards-128.png" alt="" />
+      <span class="title">SWARM Rewards</span>
+      <span class="spacer"></span>
+      <span class="network" id="linked-network"></span>
+    </div>
+
+    <div class="page">
+      <div class="section">
+        <label class="switch" for="optin">
+          <input type="checkbox" id="optin" />
+          <span class="switch-text">Take part in SWARM Rewards</span>
+        </label>
+        <p class="note" id="optin-note"></p>
+      </div>
+
+      <div class="section">
+        <span class="balance-label">Active days</span>
+        <div class="count off" id="days">0</div>
+        <div class="balance-sub" id="days-label"></div>
+        <p class="fine">
+          A day counts once, the first time the browser is used that day while you are taking part. The day is the one
+          on your own calendar.
+        </p>
+      </div>
+
+      <div class="section">
+        <span class="balance-label">Linked wallet</span>
+        <div class="linked none" id="linked">no wallet linked</div>
+        <div class="buttons gap-top">
+          <button id="link" disabled>Link your SWARM wallet</button>
+          <button id="claim" disabled>Claim</button>
+        </div>
+        <p class="claim-note" id="claim-note"></p>
+        <p class="fine">
+          Linking asks the SWARM Wallet extension for your receive address. The wallet asks you first, once, and never
+          hands over your recovery phrase, a key, your balance or your history. You can stop sharing at any time in the
+          wallet's Settings.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>What is kept on this computer</h2>
+        <ul class="plain">
+          <li>Whether you are taking part.</li>
+          <li>How many days you have been active, as a number.</li>
+          <li>The last day that number was raised, so today is not counted twice.</li>
+          <li>Your receive address, once you link it.</li>
+        </ul>
+        <h2 class="gap-top">What is not kept, anywhere</h2>
+        <ul class="plain">
+          <li>The sites you visit, their addresses, or anything derived from them.</li>
+          <li>The times of day you browse, or how long for.</li>
+          <li>Any identifier that could follow you between computers.</li>
+        </ul>
+        <p class="fine">
+          This extension has no permission to read a web page and makes no network request of any kind. Its content
+          security policy sets <span class="mono">connect-src 'none'</span>, so the browser would refuse one.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>Forget everything</h2>
+        <p class="note">
+          Sets the day count back to zero, unlinks your wallet and turns taking part off. Nothing is kept anywhere
+          else, so there is nothing else to delete.
+        </p>
+        <div class="buttons">
+          <button id="forget" class="danger">Forget everything</button>
+        </div>
+      </div>
+
+      <div id="message" class="hidden"></div>
+
+      <p class="fine">
+        There are no invitations, no tiers and no bonuses for bringing other people. There never will be.
+      </p>
+    </div>
+    <script type="module" src="page.js"></script>
+  </body>
+</html>
