@@ -98,22 +98,8 @@ jobs:
       # off by whoever presses the button.
       - name: Verify the pinned SDK revision and its network
         run: node scripts/check-swarm-sdk-pin.js sdk-source --require-real-genesis
-      # Normally `--locked`: a build whose dependency graph moved under it is
-      # not the build that was reviewed. The Treasury page added four
-      # dependencies (swarm-treasury, zebra-chain, age, sha2) on a machine
-      # with no Rust toolchain, so there was no way to resolve the lockfile
-      # before pushing. This run resolves it, uploads it, and SAYS SO; the
-      # lock is committed from that artifact and this step goes back to
-      # being `--locked` alone.
       - name: Check the lockfile resolves without changes
-        shell: pwsh
-        run: |
-          cargo fetch --locked --manifest-path native/Cargo.toml
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::warning::native/Cargo.lock does not cover this manifest; resolving it in this run"
-            cargo fetch --manifest-path native/Cargo.toml
-            if ($LASTEXITCODE -ne 0) { exit 1 }
-          }
+        run: cargo fetch --locked --manifest-path native/Cargo.toml
       - name: Generate the empty optional swap configuration
         run: node scripts/generate-swapkit-secrets.js
       - name: Check the frontend types
@@ -140,15 +126,11 @@ jobs:
         run: node scripts/check-swarm-prefix-native.js
       - name: Verify native payment URI parsing
         run: node scripts/test.js --watchAll=false --runInBand src/utils/uris.test.js
-      # See the lockfile note above: a warning on this branch until the
-      # resolved lock is committed, then `git diff --exit-code` again.
       - name: Check Rust dependency pins
-        shell: pwsh
-        run: |
-          git diff --exit-code -- native/Cargo.lock
-          if ($LASTEXITCODE -ne 0) {
-            Write-Output "::warning::native/Cargo.lock changed during this build; commit the uploaded lockfile"
-          }
+        run: git diff --exit-code -- native/Cargo.lock
+      # Kept whether or not the pin check passed: when a dependency change
+      # does move the lock, this artifact is what gets committed, instead of
+      # needing a machine with a Rust toolchain to produce it.
       - name: Keep the resolved lockfile
         if: always()
         uses: actions/upload-artifact@v4
