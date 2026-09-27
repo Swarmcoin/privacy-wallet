@@ -60,7 +60,7 @@ jobs:
             ~/.cargo/git
             native/target
             vendor/zingolib/zingo-netutils/target
-          key: swarm-windows-rust196-nu63-${{ hashFiles('native/Cargo.lock', 'native/src/lib.rs', 'sdk/swarm-sdk-pin.json') }}
+          key: swarm-windows-rust196-nu63-${{ hashFiles('native/Cargo.lock', 'native/src/lib.rs', 'native/src/treasury.rs', 'native/treasury-core/src/lib.rs', 'sdk/swarm-sdk-pin.json') }}
           restore-keys: swarm-windows-rust196-nu63-
       - name: Install pinned Protocol Buffers compiler
         uses: arduino/setup-protoc@v3
@@ -108,16 +108,36 @@ jobs:
         run: node scripts/test.js --watchAll=false --runInBand src/rpc/sendTransaction.test.ts src/components/errorModal/ErrorModal.test.tsx
       - name: Keep wallet sessions and mining receipts isolated
         run: node scripts/test.js --watchAll=false --runInBand src/rpc/walletSession.test.ts src/rpc/fetchValueTransferData.test.ts src/components/swarm/swarmModel.test.ts
+      - name: Check the treasury custody surface
+        run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx
       - name: Verify network, endpoint and server-selection boundaries
         run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx
       - name: Build the pinned wallet SDK adapter
         run: yarn neon-win-x64
+      # The addon's treasury tests: the published fixture scalars reproduce
+      # the published 2-of-3 script hash, a signer backup opens without
+      # handing back its scalar, a relay blob round trips, and two machines
+      # sign one proposal that the script interpreter then accepts. They run
+      # here because this is the only machine in the pipeline with a Rust
+      # toolchain.
+      - name: Prove the treasury bindings sign what they say they sign
+        run: cargo test --release --manifest-path native/Cargo.toml -p swarm-wallet-treasury-core
       - name: Verify native prefix compatibility
         run: node scripts/check-swarm-prefix-native.js
       - name: Verify native payment URI parsing
         run: node scripts/test.js --watchAll=false --runInBand src/utils/uris.test.js
       - name: Check Rust dependency pins
         run: git diff --exit-code -- native/Cargo.lock
+      # Kept whether or not the pin check passed: when a dependency change
+      # does move the lock, this artifact is what gets committed, instead of
+      # needing a machine with a Rust toolchain to produce it.
+      - name: Keep the resolved lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-cargo-lock-${{ inputs.network_profile || 'swarm-testnet' }}
+          path: native/Cargo.lock
+          if-no-files-found: error
       - name: Build the matching upstream transport helper
         run: node scripts/stage-nym-proxy.js --strict-rev --target x86_64-pc-windows-msvc
       - name: Save successful Rust outputs before packaging

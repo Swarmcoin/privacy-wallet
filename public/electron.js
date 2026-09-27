@@ -1258,6 +1258,224 @@ ipcMain.handle("wallets:remove", async (_e, id) => removeWallet(id));
 ipcMain.handle("wallets:clear", async () => clearWallets());
 ipcMain.handle("get-app-data-path", () => app.getPath("appData"));
 
+// -- the 2-of-3 treasury custody surface -------------------------------------
+//
+// Four things the Treasury page cannot do from the renderer, and nothing
+// else: read the fund policies the build ships, pick a signer file off the
+// disk, keep the signer files this machine has been given, and speak to the
+// relay.
+//
+// The cryptography is all on the other side of the addon boundary
+// (native/src/treasury.rs). Nothing here decrypts, signs, or even looks
+// inside a blob: main handles bytes and paths.
+
+/** Where the build keeps the read-only fund policies it ships. */
+function treasuryPolicyDir() {
+  // Packaged: electron-builder stages `resources/treasury` into
+  // `process.resourcesPath/treasury`. Development: straight out of the repo.
+  const packaged = process.resourcesPath ? path.join(process.resourcesPath, "treasury") : null;
+  if (packaged && fs.existsSync(packaged)) return packaged;
+  return path.join(__dirname, "..", "resources", "treasury");
+}
+
+/** Where this machine's own signer backups live, still encrypted. */
+function treasurySignerDir() {
+  return path.join(app.getPath("userData"), "treasury", "signers");
+}
+
+/** A `.signer.age` backup is small; anything large is not one. */
+const TREASURY_SIGNER_MAX_BYTES = 64 * 1024;
+
+/** The relay's blob ceiling, mirrored here so an oversized blob never leaves. */
+const TREASURY_RELAY_MAX_BYTES = 64 * 1024;
+const TREASURY_RELAY_TIMEOUT_MS = 20000;
+
+/**
+ * The only hosts a relay request may reach.
+ *
+ * The relay holds nothing but ciphertext, but an unrestricted fetch in main
+ * would still be an open proxy with the renderer's CSP written around it —
+ * the same reason `swapHttp:request` has a list. Loopback is allowed in
+ * development so the end-to-end test can run against a scratch container; a
+ * packaged build refuses it.
+ */
+const TREASURY_RELAY_HOSTS = new Set(["lwd-main.swarm.green"]);
+const TREASURY_RELAY_DEV_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/** A relay session id is a hash, and only ever a hash. */
+const TREASURY_SESSION_PATTERN = /^[0-9a-f]{64}$/;
+
+/** The 8-byte fingerprint a signer file is filed under. */
+const TREASURY_FINGERPRINT_PATTERN = /^[0-9a-f]{16}$/;
+
+function treasurySha256(bytes) {
+  return require("crypto").createHash("sha256").update(bytes).digest("hex");
+}
+
+ipcMain.handle("treasury:policies", async () => {
+  const dir = treasuryPolicyDir();
+  let names = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.endsWith(".policy.json"));
+  } catch {
+    return [];
+  }
+  const policies = [];
+  for (const name of names.sort()) {
+    try {
+      const bytes = fs.readFileSync(path.join(dir, name));
+      policies.push({
+        file: name,
+        json: bytes.toString("utf8"),
+        // The fingerprint of the FILE, beside the policy's own fingerprint.
+        // Two different questions: "is this the policy the fund uses" is
+        // answered by the policy fingerprint the addon recomputes; "is this
+        // the file the build shipped" is answered here.
+        fileSha256: treasurySha256(bytes),
+      });
+    } catch {
+      // A policy that will not read is a policy the page must not show.
+    }
+  }
+  return policies;
+});
+
+ipcMain.handle("treasury:pick-signer-file", async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: "Choose this machine's signer file",
+    properties: ["openFile"],
+    filters: [
+      { name: "Signer backup", extensions: ["age"] },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  if (canceled || !filePaths || filePaths.length === 0) return { canceled: true };
+  const chosen = filePaths[0];
+  const stat = fs.statSync(chosen);
+  if (stat.size > TREASURY_SIGNER_MAX_BYTES) {
+    throw new Error(
+      `that file is ${stat.size} bytes; a signer backup is a few hundred. This is not one.`,
+    );
+  }
+  return { canceled: false, path: chosen, ageHex: fs.readFileSync(chosen).toString("hex") };
+});
+
+ipcMain.handle("treasury:signers:list", async () => {
+  const dir = treasurySignerDir();
+  if (!fs.existsSync(dir)) return [];
+  const signers = [];
+  for (const name of fs.readdirSync(dir).sort()) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      signers.push(JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")));
+    } catch {
+      // A record that will not read is a record the page must not offer.
+    }
+  }
+  return signers;
+});
+
+ipcMain.handle("treasury:signers:add", async (_e, record) => {
+  const { fingerprint, label, publicKey, created, ageHex } = record ?? {};
+  if (!TREASURY_FINGERPRINT_PATTERN.test(String(fingerprint ?? ""))) {
+    throw new Error("a signer is filed under its fingerprint, and that is not one");
+  }
+  if (typeof ageHex !== "string" || ageHex.length === 0 || ageHex.length % 2 !== 0) {
+    throw new Error("the signer file did not arrive intact");
+  }
+  const bytes = Buffer.from(ageHex, "hex");
+  if (bytes.length === 0 || bytes.length > TREASURY_SIGNER_MAX_BYTES) {
+    throw new Error("that is not a signer backup");
+  }
+  const dir = treasurySignerDir();
+  fs.mkdirSync(dir, { recursive: true });
+  // The backup is written exactly as it arrived: still an `age` file, still
+  // encrypted under the passphrase chosen at the ceremony. This app never
+  // holds a decrypted signer key on disk, and never holds one in memory for
+  // longer than the single call that signs.
+  fs.writeFileSync(path.join(dir, `${fingerprint}.signer.age`), bytes, { mode: 0o600 });
+  const stored = {
+    fingerprint,
+    label: String(label ?? ""),
+    publicKey: String(publicKey ?? ""),
+    created: String(created ?? ""),
+    registered: new Date().toISOString(),
+    sha256: treasurySha256(bytes),
+  };
+  fs.writeFileSync(path.join(dir, `${fingerprint}.json`), JSON.stringify(stored, null, 2), {
+    mode: 0o600,
+  });
+  return stored;
+});
+
+ipcMain.handle("treasury:signers:read", async (_e, fingerprint) => {
+  if (!TREASURY_FINGERPRINT_PATTERN.test(String(fingerprint ?? ""))) {
+    throw new Error("that is not a signer fingerprint");
+  }
+  const file = path.join(treasurySignerDir(), `${fingerprint}.signer.age`);
+  if (!fs.existsSync(file)) throw new Error("this machine holds no signer with that fingerprint");
+  return fs.readFileSync(file).toString("hex");
+});
+
+ipcMain.handle("treasury:signers:remove", async (_e, fingerprint) => {
+  if (!TREASURY_FINGERPRINT_PATTERN.test(String(fingerprint ?? ""))) {
+    throw new Error("that is not a signer fingerprint");
+  }
+  const dir = treasurySignerDir();
+  for (const name of [`${fingerprint}.signer.age`, `${fingerprint}.json`]) {
+    const file = path.join(dir, name);
+    if (fs.existsSync(file)) fs.rmSync(file);
+  }
+  return { removed: fingerprint };
+});
+
+ipcMain.handle("treasury:relay", async (_e, request) => {
+  const { baseUrl, method, session, bodyHex } = request ?? {};
+  if (!TREASURY_SESSION_PATTERN.test(String(session ?? ""))) {
+    throw new Error("treasury relay: that is not a session id");
+  }
+  let parsed;
+  try {
+    parsed = new URL(`${String(baseUrl).replace(/\/+$/, "")}/treasury-relay/${session}`);
+  } catch {
+    throw new Error("treasury relay: unparseable address");
+  }
+  const loopbackAllowed = !app.isPackaged && TREASURY_RELAY_DEV_HOSTS.has(parsed.hostname);
+  const httpsAllowed = parsed.protocol === "https:" && TREASURY_RELAY_HOSTS.has(parsed.hostname);
+  if (!httpsAllowed && !loopbackAllowed) {
+    throw new Error(`treasury relay: refusing ${parsed.protocol}//${parsed.hostname}`);
+  }
+
+  let body;
+  if (method === "PUT") {
+    if (typeof bodyHex !== "string" || bodyHex.length % 2 !== 0) {
+      throw new Error("treasury relay: the blob did not arrive intact");
+    }
+    body = Buffer.from(bodyHex, "hex");
+    if (body.length === 0 || body.length > TREASURY_RELAY_MAX_BYTES) {
+      throw new Error(
+        `treasury relay: a blob may be up to ${TREASURY_RELAY_MAX_BYTES} bytes; this one is ${body.length}`,
+      );
+    }
+  } else if (method !== "GET") {
+    throw new Error("treasury relay: only GET and PUT");
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TREASURY_RELAY_TIMEOUT_MS);
+  try {
+    const response = await fetch(parsed.toString(), {
+      method,
+      signal: controller.signal,
+      ...(body && { body, headers: { "Content-Type": "application/octet-stream" } }),
+    });
+    const text = await response.text();
+    return { ok: response.ok, status: response.status, text };
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
 // The swap layer's HTTP, performed here for the same three reasons the ZNS
 // resolver and the server registry are: the renderer's CSP forbids `connect-src`
 // to external hosts, CORS blocks a file:// origin in the packaged app, and
@@ -1724,6 +1942,63 @@ ipcMain.handle("native:parse_address", (_e, address) => requireNative("parse_add
 ipcMain.handle("native:parse_ufvk", (_e, ufvk) => requireNative("parse_ufvk").parse_ufvk(ufvk));
 ipcMain.handle("native:get_messages", (_e, address) => requireNative("get_messages").get_messages(address));
 ipcMain.handle("native:zec_price_over_mixnet", () => requireNative("zec_price_over_mixnet").zec_price_over_mixnet());
+
+// --- The 2-of-3 treasury custody surface -----------------------------------
+//
+// Eleven addon functions (native/src/treasury.rs), JSON in and JSON out,
+// reached the same way every other native call is: the preload turns
+// `native.<name>(...)` into `native:<name>` and main performs it.
+//
+// They were in neither list until 2026-09-27, so in a packaged build every
+// one of them was `undefined` in the renderer: the Treasury page threw on
+// mount, at `treasury_policy_verify`, before it had drawn a single fund. The
+// jest manual mock supplied all eleven, which is why the suite never noticed.
+// `src/nativeSurface.test.ts` now holds the addon's declared surface against
+// this list, and `src/rpc/nativeIpc.test.ts` already held the bridge against
+// these handlers.
+//
+// Written out one by one rather than generated from a table, because that is
+// the shape `nativeIpc.test.ts` reads and a handler it cannot see is a
+// handler nothing checks.
+//
+// `treasuryArgs` is the same guard on each: exactly the arity the addon
+// declares, and strings. The bridge forwards `...args` blindly, and Neon
+// reads its arguments positionally, so a renderer sending the wrong shape
+// would otherwise reach the binding. Two of these take a passphrase; it is
+// used for that one call, never logged here and never stored.
+function treasuryArgs(method, arity, args) {
+  if (args.length !== arity) {
+    throw new Error(`native.${method} takes ${arity} argument(s), not ${args.length}`);
+  }
+  for (const argument of args) {
+    if (typeof argument !== "string") throw new Error(`native.${method} takes strings`);
+  }
+  return args;
+}
+
+ipcMain.handle("native:treasury_signer_import", (_e, ...a) =>
+  requireNative("treasury_signer_import").treasury_signer_import(...treasuryArgs("treasury_signer_import", 2, a)));
+ipcMain.handle("native:treasury_policy_verify", (_e, ...a) =>
+  requireNative("treasury_policy_verify").treasury_policy_verify(...treasuryArgs("treasury_policy_verify", 1, a)));
+ipcMain.handle("native:treasury_proposal_build", (_e, ...a) =>
+  requireNative("treasury_proposal_build").treasury_proposal_build(...treasuryArgs("treasury_proposal_build", 1, a)));
+ipcMain.handle("native:treasury_proposal_summary", (_e, ...a) =>
+  requireNative("treasury_proposal_summary").treasury_proposal_summary(...treasuryArgs("treasury_proposal_summary", 2, a)));
+ipcMain.handle("native:treasury_proposal_sign", (_e, ...a) =>
+  requireNative("treasury_proposal_sign").treasury_proposal_sign(...treasuryArgs("treasury_proposal_sign", 4, a)));
+ipcMain.handle("native:treasury_signatures_combine", (_e, ...a) =>
+  requireNative("treasury_signatures_combine").treasury_signatures_combine(...treasuryArgs("treasury_signatures_combine", 3, a)));
+ipcMain.handle("native:treasury_utxos_from_lightwalletd", (_e, ...a) =>
+  requireNative("treasury_utxos_from_lightwalletd").treasury_utxos_from_lightwalletd(...treasuryArgs("treasury_utxos_from_lightwalletd", 3, a)));
+ipcMain.handle("native:treasury_broadcast", (_e, ...a) =>
+  requireNative("treasury_broadcast").treasury_broadcast(...treasuryArgs("treasury_broadcast", 2, a)));
+ipcMain.handle("native:treasury_seal", (_e, ...a) =>
+  requireNative("treasury_seal").treasury_seal(...treasuryArgs("treasury_seal", 2, a)));
+ipcMain.handle("native:treasury_unseal", (_e, ...a) =>
+  requireNative("treasury_unseal").treasury_unseal(...treasuryArgs("treasury_unseal", 2, a)));
+ipcMain.handle("native:treasury_session_id", (_e, ...a) =>
+  requireNative("treasury_session_id").treasury_session_id(...treasuryArgs("treasury_session_id", 1, a)));
+
 // --- Mixnet transport: main-owned, session-level (ADR 0024) ----------------
 // Main spawns and holds the nym-proxy for the whole app session. Switching
 // wallets re-attaches the new LightClient to the same tunnel instead of

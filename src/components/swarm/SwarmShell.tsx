@@ -12,6 +12,7 @@ import { ContextApp } from "../../context/ContextAppState";
 import routes from "../../constants/routes.json";
 import APP_VERSION from "../../version";
 import { SWARM_NETWORK_LABEL, SWARM_DEFAULT_SERVER } from "../../utils/swarmNetwork";
+import { TREASURY_ON_BY_DEFAULT } from "../../treasury/treasuryVisibility";
 
 /**
  * The application frame: the hive rail on the left, everything else on the
@@ -24,7 +25,14 @@ import { SWARM_NETWORK_LABEL, SWARM_DEFAULT_SERVER } from "../../utils/swarmNetw
  * under one heading.
  */
 
-export type SwarmScreenId = "overview" | "send" | "receive" | "activity" | "addresses" | "settings";
+export type SwarmScreenId =
+  | "overview"
+  | "send"
+  | "receive"
+  | "activity"
+  | "addresses"
+  | "treasury"
+  | "settings";
 
 type NavEntry = {
   id: SwarmScreenId;
@@ -56,6 +64,14 @@ export const SWARM_NAV: NavEntry[] = [
     title: "Addresses",
   },
   {
+    id: "treasury",
+    label: "Treasury",
+    icon: "shield",
+    route: routes.TREASURY,
+    kicker: "2-OF-3 CUSTODY",
+    title: "Treasury",
+  },
+  {
     id: "settings",
     label: "Settings",
     icon: "settings",
@@ -64,6 +80,19 @@ export const SWARM_NAV: NavEntry[] = [
     title: "Settings",
   },
 ];
+
+/**
+ * The rail's entries for this build.
+ *
+ * Treasury is mainnet-only. The funds it spends from are mainnet P2SH
+ * addresses and the policies the build ships are mainnet policies; a testnet
+ * build that showed the page would show four funds it can say nothing true
+ * about. A testnet build that has been given a testnet policy shows it, which
+ * is what `treasuryIsVisible` decides.
+ */
+export function visibleNav(treasuryVisible: boolean): NavEntry[] {
+  return SWARM_NAV.filter((entry) => entry.id !== "treasury" || treasuryVisible);
+}
 
 export function navForPath(pathname: string): NavEntry {
   const match = SWARM_NAV.find((n) => pathname.toLowerCase().startsWith(n.route.toLowerCase()));
@@ -113,7 +142,7 @@ export const SwarmShell: React.FC<SwarmShellProps> = ({ children, onRetry, onReb
 
         <SwarmWalletMenu reopenWallet={reopenWallet} />
 
-        {SWARM_NAV.map((entry) => {
+        {visibleNav(TREASURY_ON_BY_DEFAULT).map((entry) => {
           // Send needs a wallet that can spend. The others are readable on a
           // watch-only wallet, and hiding them would leave a rail with one item.
           const disabled = entry.id === "send" && (!walletReady || readOnly);

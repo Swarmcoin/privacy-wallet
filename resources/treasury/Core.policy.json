@@ -1,0 +1,31 @@
+{
+  "schema": "swarm-treasury.policy",
+  "schema_version": 1,
+  "tool": "swarm-treasury",
+  "tool_version": "0.1.0",
+  "fund": "Core",
+  "network": "swarmmain",
+  "threshold": 2,
+  "signers": [
+    {
+      "label": "A",
+      "public_key": "029cad2d45cf8e985627fb4cf7d206b315729643e8ae1a3784d69998023a3e81bc",
+      "fingerprint": "a5eb896d276f19ce"
+    },
+    {
+      "label": "B",
+      "public_key": "03e00b552e720eb3191d6751765c577c760f4bf4c23f10959bc503f9e6b39212ca",
+      "fingerprint": "f09232728bf931f2"
+    },
+    {
+      "label": "C",
+      "public_key": "028ac48d84aa6bf824ed3497520955bbbddc4db32fdff61da3b0374cc9d859856e",
+      "fingerprint": "afc5719115ca6481"
+    }
+  ],
+  "redeem_script": "5221029cad2d45cf8e985627fb4cf7d206b315729643e8ae1a3784d69998023a3e81bc2103e00b552e720eb3191d6751765c577c760f4bf4c23f10959bc503f9e6b39212ca21028ac48d84aa6bf824ed3497520955bbbddc4db32fdff61da3b0374cc9d859856e53ae",
+  "script_hash": "bf6506a42d05b142a49bb76de3476c0327ee7751",
+  "address": "s3fLmEHc1xqs8KAe7QS7oupkhuGDjidV4eq",
+  "policy_fingerprint": "c4eb50cf30afb64d56c31c8e3a0a1753",
+  "created": "2026-09-26T12:12:42Z"
+}

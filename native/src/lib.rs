@@ -15,6 +15,8 @@ extern "C" {
 #[cfg(test)]
 mod lock_discipline_tests;
 
+mod treasury;
+
 /// How long a single indexer request may take before it is abandoned.
 const INDEXER_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -197,6 +199,11 @@ fn main(mut cx: ModuleContext) -> NeonResult<()> {
     cx.export_function("confirm", confirm)?;
     cx.export_function("delete_wallet", delete_wallet)?;
 
+    // The 2-of-3 treasury custody surface. Its own module, because it shares
+    // nothing with the wallet: no lightclient, no wallet file, no seed. A
+    // fund's money is not this wallet's money.
+    treasury::register(&mut cx)?;
+
     #[cfg(target_os = "windows")]
     cx.export_function("checkWindowsHello", check_windows_hello)?;
     #[cfg(target_os = "windows")]
@@ -313,6 +320,14 @@ pub enum ZingolibError {
     Rescan(String),
     #[error("Error: read: {0}")]
     Read(String),
+    /// Anything the treasury custody surface refuses.
+    ///
+    /// Its own variant rather than `Read`, because these messages are read by
+    /// someone about to sign away real money and are shown verbatim: "the
+    /// proposal's own hash does not match its contents" must not arrive on
+    /// screen wearing the word "read".
+    #[error("Treasury: {0}")]
+    Treasury(String),
 }
 
 pub fn with_panic_guard<T, F>(f: F) -> Result<T, ZingolibError>

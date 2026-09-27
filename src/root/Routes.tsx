@@ -54,6 +54,7 @@ import { SwarmShell } from "../components/swarm/SwarmShell";
 import { SwarmUiProvider } from "../components/swarm/SwarmUiContext";
 import { OverviewScreen } from "../components/swarm/screens/OverviewScreen";
 import { SettingsScreen } from "../components/swarm/screens/SettingsScreen";
+import { TreasuryScreen } from "../components/swarm/screens/TreasuryScreen";
 import { SendScreen } from "../components/swarm/screens/SendScreen";
 import { ReceiveScreen } from "../components/swarm/screens/ReceiveScreen";
 import { ActivityScreen } from "../components/swarm/screens/ActivityScreen";
@@ -982,6 +983,13 @@ const AppRoutes: React.FC = () => {
                 <Routes>
                   <Route path={routes.DASHBOARD} element={<OverviewScreen />} />
                   <Route path={routes.SETTINGS} element={<SettingsScreen />} />
+                  {/*
+                    Registered on every build, shown in the rail only where
+                    `treasuryIsVisible` says so. A route that exists but is
+                    not offered costs nothing; a rail entry that leads
+                    nowhere costs a bug report.
+                  */}
+                  <Route path={routes.TREASURY} element={<TreasuryScreen />} />
                   <Route
                     path={routes.SEND}
                     element={<SendScreen sendTransaction={runRPCSendTransaction} setSendPageState={setSendPageState} />}

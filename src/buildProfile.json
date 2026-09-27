@@ -1,5 +1,5 @@
 {
-  "_comment": "Which SWARM network THIS BUILD is packaged for, and the identity it is packaged under. Written by scripts/set-build-profile.js from SWARM_NETWORK_PROFILE — the same input the workflows take — so the renderer's branding, the main process's window title and electron-builder's product name, app id and version cannot disagree with each other.",
+  "_comment": "Which SWARM network THIS BUILD is packaged for, and the identity it is packaged under. Written by scripts/set-build-profile.js from SWARM_NETWORK_PROFILE \u2014 the same input the workflows take \u2014 so the renderer's branding, the main process's window title and electron-builder's product name, app id and version cannot disagree with each other.",
   "_why": [
     "A build ships every network definition it carries. Until now nothing inside the",
     "packaged wallet recorded which one it was BUILT for, so the mainnet build of",
@@ -20,7 +20,7 @@
       "artifactSuffix": "testnet"
     },
     "swarm-mainnet": {
-      "version": "0.1.0-mainnet.2",
+      "version": "0.1.0-mainnet.3",
       "productName": "SWARM Wallet",
       "executableName": "SWARM Wallet",
       "appId": "green.swarm.wallet",

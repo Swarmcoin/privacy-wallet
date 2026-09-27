@@ -82,6 +82,25 @@ const _ALL_NATIVE_METHODS = [
   "init_from_seed",
   "init_from_ufvk",
   "init_from_b64",
+  // The 2-of-3 treasury custody surface (native/src/treasury.rs). These were
+  // missing until 2026-09-27, which made every one of them `undefined` in
+  // the renderer and the Treasury page unusable in a packaged build: the
+  // first thing it does on mount is `treasury_policy_verify`. Nothing caught
+  // it because src/__mocks__/electronBridge.ts mocks all eleven, so the jest
+  // suite was green against a bridge more capable than the real one.
+  // `nativeSurface.test.ts` now compares this list against the addon's
+  // declared surface so it cannot happen again.
+  "treasury_signer_import",
+  "treasury_policy_verify",
+  "treasury_proposal_build",
+  "treasury_proposal_summary",
+  "treasury_proposal_sign",
+  "treasury_signatures_combine",
+  "treasury_utxos_from_lightwalletd",
+  "treasury_broadcast",
+  "treasury_seal",
+  "treasury_unseal",
+  "treasury_session_id",
 ];
 
 const nativeForRenderer = {};
@@ -162,6 +181,17 @@ const ALLOWED_INVOKE = new Set([
   "swapHttp:request",
   // Token logos, returned as data URIs so img-src need not be widened.
   "swapLogo:get",
+  // The 2-of-3 treasury custody surface. Main reads the fund policies the
+  // build ships, opens the file picker, keeps this machine's still-encrypted
+  // signer backups, and speaks to the relay through a host allowlist. No
+  // cryptography crosses here: that lives in the addon.
+  "treasury:policies",
+  "treasury:pick-signer-file",
+  "treasury:signers:list",
+  "treasury:signers:add",
+  "treasury:signers:read",
+  "treasury:signers:remove",
+  "treasury:relay",
 ]);
 
 contextBridge.exposeInMainWorld("electronAPI", {

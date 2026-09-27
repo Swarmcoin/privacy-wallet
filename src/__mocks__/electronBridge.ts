@@ -1,3 +1,10 @@
+// Exactly the functions `public/preload.js` puts on
+// `window.electronAPI.native`, and no others. `src/nativeSurface.test.ts`
+// holds this against that list: a mock with a function the real bridge does
+// not have is a mock that hides a Treasury-page-shaped hole. Three names were
+// removed on 2026-09-27 for that reason — `set_wallet_base_dir` and
+// `start_security_scoped_access` are main-process-only by design, and
+// `get_total_number_of_sends` was called from nowhere at all.
 export const native = {
   parse_address: jest.fn(),
   get_seed: jest.fn(),
@@ -12,8 +19,6 @@ export const native = {
   // `assertServerServesSelectedChain`.
   info_server: jest.fn(),
   set_crypto_default_provider_to_ring: jest.fn(),
-  set_wallet_base_dir: jest.fn(),
-  start_security_scoped_access: jest.fn(),
   get_latest_block_server: jest.fn(),
   // AddNewWallet (delete)
   stop_sync: jest.fn(),
@@ -29,9 +34,22 @@ export const native = {
   reserve_refund_address: jest.fn(),
   // Insight
   get_total_value_to_address: jest.fn(),
-  get_total_number_of_sends: jest.fn(),
   get_total_spends_to_address: jest.fn(),
   get_total_memobytes_to_address: jest.fn(),
+  // Treasury. Every one of these is a window onto the swarm-treasury crate;
+  // a test that needs a real answer from one of them belongs in the addon's
+  // own suite (native/src/treasury.rs), not here.
+  treasury_signer_import: jest.fn(),
+  treasury_policy_verify: jest.fn(),
+  treasury_proposal_build: jest.fn(),
+  treasury_proposal_summary: jest.fn(),
+  treasury_proposal_sign: jest.fn(),
+  treasury_signatures_combine: jest.fn(),
+  treasury_utxos_from_lightwalletd: jest.fn(),
+  treasury_broadcast: jest.fn(),
+  treasury_seal: jest.fn(),
+  treasury_unseal: jest.fn(),
+  treasury_session_id: jest.fn(),
 };
 
 export const clipboard = {

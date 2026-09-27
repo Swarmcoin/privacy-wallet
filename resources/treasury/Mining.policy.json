@@ -1,0 +1,21 @@
+{
+  "schema": "swarm-treasury.policy",
+  "schema_version": 1,
+  "tool": "swarm-treasury",
+  "tool_version": "0.1.0",
+  "fund": "Mining",
+  "network": "swarmmain",
+  "threshold": 1,
+  "signers": [
+    {
+      "label": "A",
+      "public_key": "029cad2d45cf8e985627fb4cf7d206b315729643e8ae1a3784d69998023a3e81bc",
+      "fingerprint": "a5eb896d276f19ce"
+    }
+  ],
+  "redeem_script": "5121029cad2d45cf8e985627fb4cf7d206b315729643e8ae1a3784d69998023a3e81bc51ae",
+  "script_hash": "22333f916796a8cdb2656fa3fb0baa0813cb60f0",
+  "address": "s3R1bWZPrRCtKL122ZN6uySu1ewk2ku849C",
+  "policy_fingerprint": "9698a28eb0acd154e9436454dfdd27b4",
+  "created": "2026-09-26T12:12:34Z"
+}
