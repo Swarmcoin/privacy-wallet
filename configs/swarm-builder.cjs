@@ -59,6 +59,22 @@ const licences = [
   { from: "sdk-source/LICENSE", to: "licenses/Zingolib-LICENSE.txt" },
 ];
 
+// The treasury fund policies, staged read-only beside the binary.
+//
+// They are data the build carries, not data it fetches: a policy decides
+// where a fund's money may go, and a policy the running application could be
+// talked into replacing would be no policy at all. The Treasury page puts
+// every one of them through the addon's `treasury_policy_verify`, which
+// recomputes the redeem script, the script hash, the address and the
+// fingerprint — so a file edited after packaging is refused on the machine
+// that reads it rather than believed.
+//
+// Shipped on every platform, including the ones where the page is hidden:
+// what decides whether the page appears is the build profile, and a build
+// that carried the policies only sometimes would make "the page is missing"
+// and "the policies are missing" into the same symptom.
+const treasuryPolicies = [{ from: "resources/treasury", to: "treasury" }];
+
 module.exports = {
   ...upstream,
   productName: PRODUCT,
@@ -95,7 +111,7 @@ module.exports = {
     signAndEditExecutable: true,
     signExts: [],
     protocols: [],
-    extraResources: [...upstream.win.extraResources, ...licences],
+    extraResources: [...upstream.win.extraResources, ...licences, ...treasuryPolicies],
   },
   // A single file a person double-clicks. The portable zip stays — it is
   // what someone who will not run an unsigned installer can still inspect
@@ -132,6 +148,7 @@ module.exports = {
       { from: "resources/swarm/linux/green.swarm.wallet.policy", to: "green.swarm.wallet.policy" },
       { from: "resources/swarm/linux/apparmor/swarm-wallet", to: "apparmor-swarm-wallet" },
       ...licences,
+      ...treasuryPolicies,
     ],
     mimeTypes: [],
     desktop: {
@@ -176,7 +193,7 @@ module.exports = {
       NSCameraUsageDescription:
         "SWARM Wallet uses the camera only to read payment QR codes. Images are processed on this device and never stored or sent.",
     },
-    extraResources: [{ from: "resources/nym-proxy", to: "nym-proxy" }, ...licences],
+    extraResources: [{ from: "resources/nym-proxy", to: "nym-proxy" }, ...licences, ...treasuryPolicies],
   },
   dmg: {
     ...upstream.dmg,

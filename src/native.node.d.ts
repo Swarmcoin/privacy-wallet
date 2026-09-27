@@ -135,3 +135,49 @@ export function delete_wallet(
   min_confirmations: number,
   wallet_name: string,
 ): Promise<string>;
+
+// -- the 2-of-3 treasury custody surface -------------------------------------
+//
+// Every one of these is a window onto the `swarm-treasury` crate, which is
+// the same code the offline command-line ceremony runs. Strings of JSON in,
+// strings of JSON out, like everything else here. See src/treasury/ for the
+// typed layer over them and docs/TREASURY.md for the ceremony.
+//
+// Two things never come back out: the signer's secret scalar (the
+// `.signer.age` bytes stay encrypted, and this app stores them exactly as it
+// received them) and the passphrase (passed in for one call and dropped at
+// the end of it).
+
+/** Opens a `.signer.age` backup just far enough to read its public record. */
+export function treasury_signer_import(age_hex: string, passphrase: string): Promise<string>;
+/** Recomputes everything a policy file claims, and refuses if it lied. */
+export function treasury_policy_verify(policy_json: string): Promise<string>;
+/** Builds a disbursement proposal: whole outputs, no change, one shielded note. */
+export function treasury_proposal_build(request_json: string): Promise<string>;
+/** The summary a signer reads, and the numbers behind it. */
+export function treasury_proposal_summary(proposal_json: string, policy_json: string): Promise<string>;
+/** Signs every input with one machine's signer. The passphrase is used once. */
+export function treasury_proposal_sign(
+  proposal_json: string,
+  policy_json: string,
+  signer_age_hex: string,
+  passphrase: string,
+): Promise<string>;
+/** Combines threshold signatures and runs the script interpreter over the result. */
+export function treasury_signatures_combine(
+  proposal_json: string,
+  policy_json: string,
+  signatures_json: string,
+): Promise<string>;
+/** Asks the indexer what a fund's address holds, with heights and maturity. */
+export function treasury_utxos_from_lightwalletd(
+  server_uri: string,
+  address: string,
+  lock_script_hex: string,
+): Promise<string>;
+/** Seals a relay blob under the session code (`age`, scrypt recipient). */
+export function treasury_seal(passphrase: string, plaintext: string): Promise<string>;
+/** Opens a relay blob sealed under the session code. */
+export function treasury_unseal(passphrase: string, ciphertext_hex: string): Promise<string>;
+/** The relay path a session lives at: a domain-separated hash of its code. */
+export function treasury_session_id(code: string): string;

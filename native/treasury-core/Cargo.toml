@@ -1,0 +1,24 @@
+[package]
+name = "swarm-wallet-treasury-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The treasury custody surface of SWARM Wallet, with no Node in it, so it can be tested."
+license = "MIT"
+
+[dependencies]
+# The custody tool itself (tasks T1/T2/T3), from the node repository, pinned
+# by revision. Nothing here adds cryptography: every signature, proof, hash
+# and script check comes from this crate, at the revision the ceremony was
+# rehearsed at.
+swarm-treasury = { git = "https://github.com/Swarm-Official/privacy-zebra", rev = "01b9da3de144a6deb4dd631396cbbc3bfb7c6d81" }
+
+# The same authenticated passphrase format (`age`, scrypt recipient) the
+# signer backups use, now also for the relay blobs. Default features only —
+# binary age files, no ASCII armour — matching swarm-treasury's own pin.
+age = { version = "0.12.1", default-features = false }
+hex = "0.4"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

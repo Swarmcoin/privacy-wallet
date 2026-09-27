@@ -11,5 +11,6 @@
   "INSIGHT": "/insight",
   "MIGRATION": "/migration",
   "SWAP": "/swap",
-  "SETTINGS": "/settings"
+  "SETTINGS": "/settings",
+  "TREASURY": "/treasury"
 }

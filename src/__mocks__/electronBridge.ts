@@ -32,6 +32,19 @@ export const native = {
   get_total_number_of_sends: jest.fn(),
   get_total_spends_to_address: jest.fn(),
   get_total_memobytes_to_address: jest.fn(),
+  // Treasury. Every one of these is a window onto the swarm-treasury crate;
+  // a test that needs a real answer from one of them belongs in the addon's
+  // own suite (native/src/treasury.rs), not here.
+  treasury_signer_import: jest.fn(),
+  treasury_policy_verify: jest.fn(),
+  treasury_proposal_build: jest.fn(),
+  treasury_proposal_summary: jest.fn(),
+  treasury_proposal_sign: jest.fn(),
+  treasury_signatures_combine: jest.fn(),
+  treasury_utxos_from_lightwalletd: jest.fn(),
+  treasury_seal: jest.fn(),
+  treasury_unseal: jest.fn(),
+  treasury_session_id: jest.fn(),
 };
 
 export const clipboard = {

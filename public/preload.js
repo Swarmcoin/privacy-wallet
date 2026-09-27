@@ -162,6 +162,17 @@ const ALLOWED_INVOKE = new Set([
   "swapHttp:request",
   // Token logos, returned as data URIs so img-src need not be widened.
   "swapLogo:get",
+  // The 2-of-3 treasury custody surface. Main reads the fund policies the
+  // build ships, opens the file picker, keeps this machine's still-encrypted
+  // signer backups, and speaks to the relay through a host allowlist. No
+  // cryptography crosses here: that lives in the addon.
+  "treasury:policies",
+  "treasury:pick-signer-file",
+  "treasury:signers:list",
+  "treasury:signers:add",
+  "treasury:signers:read",
+  "treasury:signers:remove",
+  "treasury:relay",
 ]);
 
 contextBridge.exposeInMainWorld("electronAPI", {
