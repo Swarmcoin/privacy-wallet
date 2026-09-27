@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Swarm-Official/privacy-zingolib
-          ref: d9f1a5b888067724b61b2fae46307ed56b4b1e0a
+          ref: c7464d2ec40a5d619500a9ebee76ac4c39775baa
           path: sdk-source
       - uses: actions/setup-node@v4
         with:
