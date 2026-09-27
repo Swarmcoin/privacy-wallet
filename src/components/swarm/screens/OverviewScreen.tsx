@@ -8,7 +8,7 @@ import { ActivityList } from "../components/ActivityList";
 import { ContextApp } from "../../../context/ContextAppState";
 import routes from "../../../constants/routes.json";
 import SwarmMark from "../../logo/SwarmMark";
-import { SWARM_TICKER } from "../../../utils/swarmNetwork";
+import { SWARM_COINS_ARE_TEST_COINS, SWARM_TICKER } from "../../../utils/swarmNetwork";
 import { ZcashURITarget } from "../../../utils/uris";
 
 /**
@@ -84,7 +84,13 @@ export const OverviewScreen: React.FC = () => {
           <div className={styles.balanceValue}>
             {show(balances.total)} <span className={styles.balanceTicker}>{SWARM_TICKER}</span>
           </div>
-          <div className={styles.balanceNote}>test coins · no market value</div>
+          {/*
+            Only where it is true. Up to 0.1.0-mainnet.5 this line was written
+            into the card unconditionally, so the mainnet wallet told its owner
+            that real SWM had "no market value". Onboarding already follows
+            the build's network; this follows it too.
+          */}
+          {SWARM_COINS_ARE_TEST_COINS && <div className={styles.balanceNote}>test coins · no market value</div>}
           <div className={styles.actionRow}>
             <button
               type="button"
