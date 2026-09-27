@@ -72,6 +72,23 @@
       </div>
 
       <div class="section">
+        <h2>SWARM Rewards</h2>
+        <div class="row between">
+          <span class="note">Receive address</span>
+          <span class="mono" id="rewards-consent">…</span>
+        </div>
+        <p class="note">
+          SWARM Rewards is a separate extension. When it is allowed, it may ask this wallet for your receive address
+          and for nothing else: not your recovery phrase, not a key, not your balance, not your history. You are asked
+          once, in the popup, and the answer is kept here.
+        </p>
+        <div class="buttons">
+          <button id="rewards-revoke" class="danger">Stop sharing</button>
+        </div>
+        <p class="ok hidden" id="rewards-ok"></p>
+      </div>
+
+      <div class="section">
         <h2>Advanced</h2>
         <p class="note">
           If you have been asked to test on the SWARM test network, type <span class="mono">testnet</span> below. Test

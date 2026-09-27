@@ -9,7 +9,11 @@
 import { command, el, show, setText, setError, copyToClipboard, formatAmount, maskAmount, paintNetwork } from "./common.js";
 import { encode, draw } from "./lib/qr.js";
 
-const VIEWS = ["nohost", "setup", "locked", "wallet", "receive", "send", "confirm", "sent"];
+const VIEWS = ["nohost", "share", "setup", "locked", "wallet", "receive", "send", "confirm", "sent"];
+
+/** Storage keys shared with the service worker's one door to SWARM Rewards. */
+const CONSENT_KEY = "rewardsAddressConsent";
+const CONSENT_PENDING_KEY = "rewardsConsentPending";
 
 let state = {
   revealed: false,
@@ -32,7 +36,36 @@ function syncIndicator(kind, text) {
 
 /* ── loading ────────────────────────────────────────────────────────────── */
 
+/**
+ * Has SWARM Rewards asked for the address and not been answered?
+ *
+ * Asked before the host is contacted, so the question can be answered even
+ * when the host is down, and so it is the first thing the person sees rather
+ * than something buried under a balance.
+ */
+async function pendingRewardsQuestion() {
+  try {
+    const stored = await chrome.storage.local.get({ [CONSENT_KEY]: null, [CONSENT_PENDING_KEY]: false });
+    return stored[CONSENT_PENDING_KEY] === true && stored[CONSENT_KEY] !== "granted";
+  } catch (_) {
+    return false;
+  }
+}
+
+async function answerRewardsQuestion(granted) {
+  await chrome.storage.local.set({
+    [CONSENT_KEY]: granted ? "granted" : "refused",
+    [CONSENT_PENDING_KEY]: false,
+  });
+  await refresh();
+}
+
 async function refresh() {
+  if (await pendingRewardsQuestion()) {
+    view("share");
+    syncIndicator("", "SWARM Rewards is waiting for an answer");
+    return;
+  }
   const answer = await command("status");
   if (!answer.ok) {
     setError("nohost-detail", answer.error);
@@ -180,6 +213,9 @@ async function doSend() {
 
 el("nohost-retry").addEventListener("click", refresh);
 
+el("share-yes").addEventListener("click", () => answerRewardsQuestion(true));
+el("share-no").addEventListener("click", () => answerRewardsQuestion(false));
+
 el("setup-create").addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html#create") });
   window.close();
@@ -262,7 +298,9 @@ el("go-settings").addEventListener("click", () => {
 });
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message && message.type === "swarm.locked") refresh();
+  if (!message) return;
+  if (message.type === "swarm.locked") refresh();
+  if (message.type === "swarm.rewards.consent-pending") refresh();
 });
 
 refresh();

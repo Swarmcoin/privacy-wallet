@@ -29,6 +29,30 @@
           <button id="nohost-retry" class="primary">Try again</button>
         </div>
 
+        <!-- SWARM Rewards is asking for the receive address -->
+        <div id="view-share" class="hidden">
+          <h1>Share your receive address with SWARM Rewards?</h1>
+          <p>SWARM Rewards would pay into this wallet, so it needs the address payments go to. It is asking now.</p>
+          <div class="section stack">
+            <div>
+              <span class="balance-label">It would be given</span>
+              <p class="note">Your receive address, and which SWARM network it belongs to. Nothing else.</p>
+            </div>
+            <div>
+              <span class="balance-label">It would never be given</span>
+              <p class="note">
+                Your recovery phrase, any key, your balance, your payment history. There is no way to send those
+                over this channel.
+              </p>
+            </div>
+          </div>
+          <p class="note">You can take this back later, under Settings.</p>
+          <div class="buttons">
+            <button id="share-no">No</button>
+            <button id="share-yes" class="primary">Yes, share it</button>
+          </div>
+        </div>
+
         <!-- no wallet yet -->
         <div id="view-setup" class="hidden">
           <h1>No wallet on this computer</h1>

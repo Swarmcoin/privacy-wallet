@@ -50,4 +50,26 @@ async function switchTo(network) {
 el("to-mainnet").addEventListener("click", () => switchTo("swarm-mainnet"));
 el("to-testnet").addEventListener("click", () => switchTo("swarm-testnet"));
 
+/* ── SWARM Rewards ──────────────────────────────────────────────────────── */
+
+const CONSENT_KEY = "rewardsAddressConsent";
+const CONSENT_PENDING_KEY = "rewardsConsentPending";
+
+async function loadRewards() {
+  const stored = await chrome.storage.local.get({ [CONSENT_KEY]: null });
+  const value = stored[CONSENT_KEY];
+  setText("rewards-consent", value === "granted" ? "shared" : value === "refused" ? "refused" : "not shared");
+  el("rewards-revoke").disabled = value !== "granted";
+}
+
+el("rewards-revoke").addEventListener("click", async () => {
+  // Back to never-asked: SWARM Rewards may ask again, and the popup will put
+  // the question to you again rather than answering on your behalf.
+  await chrome.storage.local.set({ [CONSENT_KEY]: null, [CONSENT_PENDING_KEY]: false });
+  setText("rewards-ok", "SWARM Rewards no longer has your address. It will have to ask you again.");
+  show(el("rewards-ok"), true);
+  await loadRewards();
+});
+
 load();
+loadRewards();
