@@ -12,8 +12,14 @@
  * SWARM mainnet goes through the host.
  */
 import { isOwnPage } from "./lib/sender.js";
+import { REWARDS_EXTENSION_ID, addressAnswer, mayAnswerRewards } from "./lib/rewards.js";
 
 const HOST_NAME = "green.swarm.wallet_host";
+
+/** "granted" once the person has said yes in the popup; "refused" if they said no. */
+const CONSENT_KEY = "rewardsAddressConsent";
+/** True while SWARM Rewards is waiting for that answer, so the popup knows to ask. */
+const CONSENT_PENDING_KEY = "rewardsConsentPending";
 
 /** The live port, or null. Recreated on demand. */
 let port = null;
@@ -146,6 +152,69 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.command === "wallet.unlock" && answer.ok) broadcast({ type: "swarm.unlocked" });
     sendResponse(answer);
   });
+  return true; // the answer comes later
+});
+
+/* ── the one door to SWARM Rewards ──────────────────────────────────────── */
+
+/**
+ * SWARM Rewards may learn one thing: the address it would pay.
+ *
+ * Four locks, in this order. The manifest's `externally_connectable` lets only
+ * the Rewards id reach this listener at all. `mayAnswerRewards` checks the id
+ * and the question again here, because a manifest is a setting and this is
+ * code. The person must have said yes once in the popup. And the wallet must
+ * be unlocked, so an address is never produced behind a locked door.
+ *
+ * What crosses: `swm1…` and the network's name. What never crosses: the
+ * recovery phrase, any viewing or spending key, the balance, the history, the
+ * transparent address, the wallet folder. The answer is built in
+ * `addressAnswer` from two strings rather than forwarded, so it cannot grow.
+ */
+async function answerRewardsAddress() {
+  const stored = await chrome.storage.local.get({ [CONSENT_KEY]: null });
+  if (stored[CONSENT_KEY] !== "granted") {
+    // Remember that someone is waiting, so the popup asks the question the
+    // next time it is opened. This is the only thing an unapproved request
+    // can change, and it changes nothing about the wallet.
+    await chrome.storage.local.set({ [CONSENT_PENDING_KEY]: true });
+    broadcast({ type: "swarm.rewards.consent-pending" });
+    return {
+      ok: false,
+      error: {
+        code: "consent_required",
+        message: "Open the SWARM Wallet popup. It will ask whether to share your receive address with SWARM Rewards.",
+      },
+    };
+  }
+
+  const status = await ask("status");
+  if (!status.ok) return { ok: false, error: status.error };
+  if (!status.result.unlocked) {
+    return {
+      ok: false,
+      error: { code: "locked", message: "Unlock the SWARM Wallet first, then link again in SWARM Rewards." },
+    };
+  }
+
+  const addresses = await ask("addresses");
+  if (!addresses.ok) return { ok: false, error: addresses.error };
+  const unified = addresses.result && addresses.result.unified;
+  if (!unified) {
+    return { ok: false, error: { code: "no_address", message: "This wallet has no receive address yet." } };
+  }
+  return addressAnswer(unified, status.result.network && status.result.network.id);
+}
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (!mayAnswerRewards(sender, message, REWARDS_EXTENSION_ID)) {
+    sendResponse({
+      ok: false,
+      error: { code: "refused", message: "This wallet answers only SWARM Rewards, and only about its receive address." },
+    });
+    return false;
+  }
+  answerRewardsAddress().then(sendResponse);
   return true; // the answer comes later
 });
 
