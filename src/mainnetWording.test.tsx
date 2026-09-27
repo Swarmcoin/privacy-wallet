@@ -144,9 +144,11 @@ function transfer(partial: Partial<ValueTransferClass> & { isCoinbase?: boolean 
 
 /** A mainnet wallet with a little of everything to draw. */
 function mainnetState(overrides: Partial<AppState> = {}): AppState {
-  const unified = new UnifiedAddressClass();
-  unified.encoded_address =
-    "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+  const unified = {
+    encoded_address:
+      "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv",
+    has_orchard: true,
+  } as UnifiedAddressClass;
   const transparent = { encoded_address: "s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk" } as TransparentAddressClass;
   const balance = {
     ...new TotalBalanceClass(),
