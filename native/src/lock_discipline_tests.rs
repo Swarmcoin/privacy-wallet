@@ -440,3 +440,114 @@ fn nothing_shielded_answers_zero_rather_than_a_consensus_error() {
         "a wallet with nothing shielded can send nothing: {parsed}"
     );
 }
+
+// -- a wallet on SWARM production ---------------------------------------------
+//
+// Until 0.1.0-mainnet.6 no production wallet could pay another: `parse_address`
+// never tried the production profile, so every `swm1…`/`s1…`/`s3…` came back
+// `Invalid address` and the Send screen refused it before any of the endpoints
+// below were reached. These run each step of the send path against an offline
+// wallet that is actually on production, so the chain it reads is the one a
+// mainnet user's wallet is on rather than upstream Zcash's.
+
+/// The FUEL payout address the owner could not pay on 2026-09-27. Nothing here
+/// sends to it: the wallet below is offline and holds nothing.
+const PRODUCTION_UA: &str = "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+const PRODUCTION_TRANSPARENT: &str = "s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk";
+
+/// The offline fixture, on SWARM production instead of upstream mainnet.
+fn init_offline_production_wallet() {
+    report_panics_to_stderr();
+    let dir = std::env::temp_dir().join("zingo-pc-lock-discipline");
+    reset_lightclient();
+    let _ = std::fs::remove_dir_all(&dir);
+    // Production wallets live one level down, in the directory the SDK names
+    // after the profile (see `construct_uri_load_config`).
+    std::fs::create_dir_all(dir.join("swarm-mainnet")).expect("the fixture needs somewhere to write");
+    let _ = WALLET_BASE_DIR.set(dir);
+
+    init_from_seed_string(
+        FIXTURE_MNEMONIC.to_string(),
+        1.0,
+        String::new(),
+        format!("swarm-mainnet:{SWARM_MAINNET_LAUNCH_GENESIS}"),
+        "Medium".to_string(),
+        1.0,
+        "lock-discipline-production-fixture".to_string(),
+    )
+    .expect("the offline production fixture wallet must initialize");
+}
+
+#[test]
+fn production_wallet_is_the_first_chain_parse_address_tries() {
+    let _serial = serialized();
+    init_offline_production_wallet();
+    let open = open_wallet_chain_type().expect("the fixture is open and nothing holds the lock");
+    assert_eq!(open, swarm_mainnet_launch_chain());
+    let candidates = address_chain_candidates(Some(open));
+    assert_eq!(candidates[0], open, "{candidates:?}");
+
+    let answer = parse_address_answer(PRODUCTION_UA, &candidates);
+    assert_eq!(answer["chain_name"], "swarm-mainnet", "{answer}");
+    assert_eq!(answer["address_kind"], "unified", "{answer}");
+    // The wallet's own address, too: what a second wallet would paste.
+    let own = fixture_unified_address();
+    assert!(own.starts_with("swm1"), "{own}");
+    assert_eq!(parse_address_answer(&own, &candidates)["chain_name"], "swarm-mainnet");
+}
+
+#[test]
+fn production_wallet_parse_address_never_waits_for_the_exclusive_lock() {
+    let _serial = serialized();
+    init_offline_production_wallet();
+    // A send, a sync step or a rescan holds this for seconds at a time. The
+    // address field must still answer, from the fallback order.
+    let _writer = LIGHTCLIENT
+        .write()
+        .expect("no serialized test leaves the lock poisoned");
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let candidates = address_chain_candidates(open_wallet_chain_type());
+        let _ = tx.send(parse_address_answer(PRODUCTION_TRANSPARENT, &candidates));
+    });
+    let answer = rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("parse_address queued behind the exclusive lock");
+    assert_eq!(answer["chain_name"], "swarm-mainnet", "{answer}");
+    assert_eq!(answer["address_kind"], "transparent", "{answer}");
+}
+
+#[test]
+fn production_wallet_prices_a_payment_to_a_production_address() {
+    let _serial = serialized();
+    init_offline_production_wallet();
+    // `get_spendable_balance_with_address` parses with `address_from_str`
+    // before it asks what could be sent. A never-synced wallet can send
+    // nothing; what matters is that the address is not what it refuses.
+    for address in [PRODUCTION_UA, PRODUCTION_TRANSPARENT] {
+        let answer = get_spendable_balance_with_address_string(address.to_string(), "false".to_string())
+            .unwrap_or_else(|e| panic!("{address} was refused: {e}"));
+        let parsed = json::parse(&answer).expect("well-formed JSON");
+        assert_eq!(parsed["spendable_balance"].as_u64(), Some(0), "{address}: {parsed}");
+    }
+}
+
+#[test]
+fn production_wallet_proposes_a_payment_to_a_production_address() {
+    let _serial = serialized();
+    init_offline_production_wallet();
+    // `send` decodes each recipient with `ZcashAddress::try_from_encoded` and
+    // builds a ZIP 321 request before it proposes. An offline wallet stops at
+    // the proposal, for want of a chain tip; it must get that far, with no
+    // word about the address.
+    for address in [PRODUCTION_UA, PRODUCTION_TRANSPARENT] {
+        let request = json::array![json::object! { "address" => address, "amount" => 100_000u64 }];
+        let answer = send_proposal_string(request.dump()).expect("an initialized wallet answers");
+        let parsed = json::parse(&answer).expect("well-formed JSON");
+        let error = parsed["error"].as_str().unwrap_or_default().to_lowercase();
+        assert!(parsed["fee"].is_null(), "an offline wallet cannot price a payment: {parsed}");
+        assert!(!error.is_empty(), "{address}: {parsed}");
+        assert!(!error.contains("invalid address"), "{address}: {parsed}");
+        assert!(!error.contains("request error"), "{address}: {parsed}");
+    }
+}

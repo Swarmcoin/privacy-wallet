@@ -1,12 +1,13 @@
 import Utils from "./utils";
 import {
+  AddressKindEnum,
   BlockExplorerEnum,
   ServerChainNameEnum,
   UnifiedAddressClass,
   ValueTransferKindEnum,
   ValueTransferStatusEnum,
 } from "../components/appstate";
-import { shell } from "../electronBridge";
+import { native, shell } from "../electronBridge";
 
 jest.mock("../electronBridge");
 
@@ -14,6 +15,64 @@ const mockOpenExternal = shell.openExternal as jest.Mock;
 
 beforeEach(() => {
   mockOpenExternal.mockClear();
+});
+
+// ---------------------------------------------------------------------------
+// getAddressKind on SWARM Mainnet
+// ---------------------------------------------------------------------------
+//
+// 0.1.0-mainnet.2 to .5 refused every SWARM Mainnet address with "Not an
+// address this network recognises": the addon answered `Invalid address` for
+// `swm1…`, `s1…` and `s3…` alike, and this function passes that on. The addon
+// now names them `swarm-mainnet` (native/src/lib.rs, `parse_address_tests`);
+// these hold the renderer's half — that such an answer is accepted on a
+// mainnet wallet and on nothing else.
+describe("getAddressKind on SWARM Mainnet", () => {
+  const FUEL_PAYOUT_UA =
+    "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+  const SWARM_MAINNET_T = "s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk";
+  const MAINNET = ServerChainNameEnum.swarmMainnetChainName;
+  const mockParse = native.parse_address as jest.Mock;
+  const answers = (answer: object) => mockParse.mockResolvedValue(JSON.stringify(answer));
+
+  afterEach(() => mockParse.mockReset());
+
+  it("accepts a swm1 address the addon names swarm-mainnet", async () => {
+    answers({ status: "success", chain_name: "swarm-mainnet", address_kind: "unified", receivers_available: ["orchard"] });
+    await expect(Utils.getAddressKind(FUEL_PAYOUT_UA, MAINNET)).resolves.toBe(AddressKindEnum.unified);
+    expect(mockParse).toHaveBeenCalledWith(FUEL_PAYOUT_UA);
+  });
+
+  it("accepts an s1 address the addon names swarm-mainnet", async () => {
+    answers({ status: "success", chain_name: "swarm-mainnet", address_kind: "transparent" });
+    await expect(Utils.getAddressKind(SWARM_MAINNET_T, MAINNET)).resolves.toBe(AddressKindEnum.transparent);
+  });
+
+  it("refuses what the mainnet.2 to .5 addon answered", async () => {
+    answers({ status: "Invalid address", chain_name: null, address_kind: null });
+    await expect(Utils.getAddressKind(FUEL_PAYOUT_UA, MAINNET)).resolves.toBeUndefined();
+  });
+
+  it("does not let any other chain's answer stand for SWARM Mainnet", async () => {
+    for (const chain_name of ["main", "test", "regtest", "swarm-testnet"]) {
+      answers({ status: "success", chain_name, address_kind: "unified" });
+      await expect(Utils.getAddressKind(FUEL_PAYOUT_UA, MAINNET)).resolves.toBeUndefined();
+    }
+  });
+
+  it("does not let a swarm-mainnet answer stand for SWARM Testnet", async () => {
+    answers({ status: "success", chain_name: "swarm-mainnet", address_kind: "unified" });
+    await expect(
+      Utils.getAddressKind(FUEL_PAYOUT_UA, ServerChainNameEnum.swarmTestnetChainName),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses a SWARM Testnet address before asking the addon", async () => {
+    answers({ status: "success", chain_name: "swarm-mainnet", address_kind: "unified" });
+    const testnetUa = "swarm1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+    await expect(Utils.getAddressKind(testnetUa, MAINNET)).resolves.toBeUndefined();
+    expect(mockParse).not.toHaveBeenCalled();
+  });
 });
 
 test("custom testnet uses test addresses while rejecting mainnet and regtest encodings", () => {

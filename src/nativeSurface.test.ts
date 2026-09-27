@@ -31,6 +31,7 @@
 
 import fs from "fs";
 import path from "path";
+import { SWARM_MAINNET_GENESIS } from "./utils/networkProfiles";
 
 const root = path.resolve(__dirname, "..");
 const read = (file: string) => fs.readFileSync(path.join(root, file), "utf8");
@@ -148,5 +149,31 @@ describe("the native bridge", () => {
     const mocked = [...nativeBlock[1].matchAll(/^\s{2}(\w+): jest\.fn\(\)/gm)].map((m) => m[1]);
     const overreach = mocked.filter((name) => !exposed.includes(name));
     expect(overreach).toEqual([]);
+  });
+});
+
+describe("the addon's SWARM production profile", () => {
+  /**
+   * `parse_address` decodes against SWARM production built from this
+   * constant when no wallet on that network is open (native/src/lib.rs).
+   * Decoding reads only the network type, so a wrong value here would not
+   * change an answer today — which is exactly why nothing else would notice
+   * it drifting from the genesis the renderer holds the indexer to.
+   */
+  it("is built from the genesis the renderer's profile ships", () => {
+    const lib = read("native/src/lib.rs");
+    const declared = lib.match(/const SWARM_MAINNET_LAUNCH_GENESIS: &str =\s*"([0-9a-f]{64})";/);
+    expect(declared?.[1]).toBe(SWARM_MAINNET_GENESIS);
+  });
+
+  it("is a candidate for every address parse_address answers", () => {
+    // The mainnet.2 to .5 defect in one line: a candidate list with no
+    // production entry. Read from the source so a revert is a red test here
+    // too, and not only in the Rust suite CI runs on two platforms.
+    const lib = read("native/src/lib.rs");
+    const body = lib.match(/fn address_chain_candidates\(open: Option<ChainType>\) -> Vec<ChainType> \{([\s\S]*?)\n\}/);
+    expect(body).not.toBeNull();
+    expect(body?.[1]).toContain("ChainType::SwarmMainnet");
+    expect(body?.[1]).toContain("swarm_mainnet_launch_chain()");
   });
 });

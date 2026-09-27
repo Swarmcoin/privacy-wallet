@@ -1643,106 +1643,370 @@ fn wallet_kind(mut cx: FunctionContext) -> JsResult<JsPromise> {
     spawn_promise(&mut cx, wallet_kind_string)
 }
 
+/// The genesis the SWARM production network launched from, in the display
+/// order a node prints: the value `src/utils/networkProfiles.ts` ships as
+/// `SWARM_MAINNET_GENESIS`, and which `src/nativeSurface.test.ts` holds this
+/// line to, so the two cannot drift apart.
+///
+/// `parse_address` builds its production candidate from it when no wallet on
+/// that network is open. Decoding an address reads only the candidate's
+/// network type — an address string carries no genesis — so no other value
+/// could change an answer; the launch genesis is used because it is the true
+/// one, not a placeholder that happens to work.
+const SWARM_MAINNET_LAUNCH_GENESIS: &str =
+    "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd";
+
+/// SWARM production, carrying the genesis it launched from.
+fn swarm_mainnet_launch_chain() -> ChainType {
+    ChainType::SwarmMainnet(
+        zingolib::config::SwarmMainnetGenesis::from_display_hex(SWARM_MAINNET_LAUNCH_GENESIS)
+            .expect("the launch genesis is 64 lowercase hexadecimal characters"),
+    )
+}
+
+/// The chain the open wallet is on, when a wallet is open and nothing holds
+/// the exclusive lock at this instant.
+///
+/// `try_read`, never `read`. `parse_address` answers while an address is
+/// being typed, and a send, a sync step or a rescan can hold the exclusive
+/// lock for seconds; queueing behind it would freeze the field. Not knowing
+/// costs nothing: SWARM production is a candidate either way, and only its
+/// place in the order depends on this. No string decodes on it and on another
+/// candidate, so the order never changes an answer between those two.
+fn open_wallet_chain_type() -> Option<ChainType> {
+    LIGHTCLIENT
+        .try_read()
+        .ok()
+        .and_then(|guard| guard.as_ref().map(|lightclient| lightclient.chain_type()))
+}
+
+/// The chain profiles `parse_address` decodes an address against, in the
+/// order it tries them.
+///
+/// Upstream Zcash's three are always here: contacts and URIs on those
+/// networks are still classified — and then refused by name — rather than
+/// reported as noise. SWARM production is here too, first when the open wallet
+/// is on it (with that wallet's own genesis) and last otherwise (with the
+/// launch genesis).
+///
+/// `ChainType::CustomTestnet` is not a candidate and does not need to be. It
+/// shares `NetworkType::Test` with `ChainType::Testnet`, so every string it
+/// accepts decodes as `test` first, which the renderer's `sameAddressNetwork`
+/// reads as SwarmTestnet on purpose.
+fn address_chain_candidates(open: Option<ChainType>) -> Vec<ChainType> {
+    let upstream = [
+        ChainType::Mainnet,
+        ChainType::Testnet,
+        ChainType::Regtest(ActivationHeights::default()),
+    ];
+    match open {
+        Some(production @ ChainType::SwarmMainnet(_)) => {
+            std::iter::once(production).chain(upstream).collect()
+        }
+        _ => upstream
+            .into_iter()
+            .chain(std::iter::once(swarm_mainnet_launch_chain()))
+            .collect(),
+    }
+}
+
+/// What `parse_address` calls the chain an address decoded on.
+fn address_chain_name(chain: &ChainType) -> &'static str {
+    match chain {
+        ChainType::Mainnet => "main",
+        ChainType::Testnet => "test",
+        ChainType::Regtest(_) => "regtest",
+        // Never a candidate (see `address_chain_candidates`); named so the
+        // match stays exhaustive over `ChainType` instead of being closed
+        // with a wildcard that would quietly mislabel a future variant.
+        ChainType::CustomTestnet => "swarm-testnet",
+        ChainType::SwarmMainnet(_) => zingolib::config::SWARM_MAINNET_NAME,
+    }
+}
+
+/// `parse_address`'s answer for `address`, decoded against `candidates` in
+/// order. The first chain it decodes on names it.
+fn parse_address_answer(address: &str, candidates: &[ChainType]) -> json::JsonValue {
+    // Empty input and a string no candidate decodes get the same structured
+    // status, never error prose.
+    let invalid = || {
+        object! {
+            "status" => "Invalid address",
+            "chain_name" => json::JsonValue::Null,
+            "address_kind" => json::JsonValue::Null,
+        }
+    };
+    if address.is_empty() {
+        return invalid();
+    }
+    let Some((recipient_address, chain)) = candidates
+        .iter()
+        .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
+    else {
+        return invalid();
+    };
+    let chain_name = address_chain_name(&chain);
+    match recipient_address {
+        Address::Sapling(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "address_kind" => "sapling",
+        },
+        Address::Transparent(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "address_kind" => "transparent",
+        },
+        Address::Tex(_) => object! {
+            "status" => "success",
+            "chain_name" => chain_name,
+            "address_kind" => "tex",
+        },
+        Address::Unified(ua) => {
+            let mut receivers_available = vec![];
+            if ua.sapling().is_some() {
+                receivers_available.push("sapling")
+            }
+            if ua.transparent().is_some() {
+                receivers_available.push("transparent")
+            }
+            if ua.orchard().is_some() {
+                receivers_available.push("orchard");
+                object! {
+                    "status" => "success",
+                    "chain_name" => chain_name,
+                    "address_kind" => "unified",
+                    "receivers_available" => receivers_available,
+                    "only_orchard_ua" => zcash_keys::address::UnifiedAddress::from_receivers(ua.orchard().cloned(), None, None).expect("To construct UA").encode(&chain),
+                }
+            } else {
+                object! {
+                    "status" => "success",
+                    "chain_name" => chain_name,
+                    "address_kind" => "unified",
+                    "receivers_available" => receivers_available,
+                }
+            }
+        }
+    }
+}
+
 fn parse_address(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let address = cx.argument::<JsString>(0)?.value(&mut cx);
 
     spawn_promise(&mut cx, move || -> Result<String, ZingolibError> {
         with_panic_guard(|| {
-            if address.is_empty() {
-                // Empty input is invalid; report it with the same structured
-                // status the decode-failure path uses, never as error prose.
-                Ok(object! {
-                    "status" => "Invalid address",
-                    "chain_name" => json::JsonValue::Null,
-                    "address_kind" => json::JsonValue::Null,
-                }
-                .pretty(2))
-            } else {
-                fn make_decoded_chain_pair(
-                    address: &str,
-                ) -> Option<(zcash_client_backend::address::Address, ChainType)> {
-                    [
-                        ChainType::Mainnet,
-                        ChainType::Testnet,
-                        ChainType::Regtest(ActivationHeights::default()),
-                    ]
-                    .iter()
-                    .find_map(|chain| Address::decode(chain, address).zip(Some(*chain)))
-                }
-                if let Some((recipient_address, chain_name)) = make_decoded_chain_pair(&address) {
-                    let chain_name_string = match chain_name {
-                        ChainType::Mainnet => "main",
-                        ChainType::Testnet => "test",
-                        ChainType::Regtest(_) => "regtest",
-                        ChainType::CustomTestnet => "swarm-testnet",
-                        // Unreachable: `make_decoded_chain_pair` above tries
-                        // three chains and this is not one of them, because
-                        // building it needs a genesis hash that an address
-                        // string does not carry. The arm exists so that the
-                        // match stays exhaustive over `ChainType` rather than
-                        // being closed with a wildcard that would quietly
-                        // mislabel a future variant.
-                        ChainType::SwarmMainnet(_) => "swarm-mainnet",
-                    };
-                    match recipient_address {
-                        Address::Sapling(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "sapling",
-                        }
-                        .pretty(2)),
-                        Address::Transparent(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "transparent",
-                        }
-                        .pretty(2)),
-                        Address::Tex(_) => Ok(object! {
-                            "status" => "success",
-                            "chain_name" => chain_name_string,
-                            "address_kind" => "tex",
-                        }
-                        .pretty(2)),
-                        Address::Unified(ua) => {
-                            let mut receivers_available = vec![];
-                            if ua.sapling().is_some() {
-                                receivers_available.push("sapling")
-                            }
-                            if ua.transparent().is_some() {
-                                receivers_available.push("transparent")
-                            }
-                            if ua.orchard().is_some() {
-                                receivers_available.push("orchard");
-                                Ok(object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                    "only_orchard_ua" => zcash_keys::address::UnifiedAddress::from_receivers(ua.orchard().cloned(), None, None).expect("To construct UA").encode(&chain_name),
-                                }
-                                .pretty(2))
-                            } else {
-                                Ok(object! {
-                                    "status" => "success",
-                                    "chain_name" => chain_name_string,
-                                    "address_kind" => "unified",
-                                    "receivers_available" => receivers_available,
-                                }
-                                .pretty(2))
-                            }
-                        }
-                    }
-                } else {
-                    Ok(object! {
-                        "status" => "Invalid address",
-                        "chain_name" => json::JsonValue::Null,
-                        "address_kind" => json::JsonValue::Null,
-                    }
-                    .pretty(2))
-                }
-            }
+            let candidates = address_chain_candidates(open_wallet_chain_type());
+            Ok(parse_address_answer(&address, &candidates).pretty(2))
         })
     })
+}
+
+#[cfg(test)]
+mod parse_address_tests {
+    //! What `parse_address` answers, per network and per address kind.
+    //!
+    //! Until 0.1.0-mainnet.6 every SWARM production address came back
+    //! `Invalid address` — `swm1…`, `s1…` and `s3…` alike — because the
+    //! production profile was never a candidate, so no mainnet wallet could
+    //! pay another. The addresses here are real encodings: the two the owner
+    //! could not pay on 2026-09-27, and one of each kind derived on each
+    //! network from a seed nothing has ever been sent to.
+
+    use super::{
+        SWARM_MAINNET_LAUNCH_GENESIS, address_chain_candidates, parse_address_answer,
+        swarm_mainnet_launch_chain,
+    };
+    use zcash_keys::address::Address;
+    use zcash_keys::keys::{ReceiverRequirement, UnifiedAddressRequest, UnifiedSpendingKey};
+    use zcash_transparent::address::TransparentAddress;
+    use zingolib::ActivationHeights;
+    use zingolib::config::{ChainType, SwarmMainnetGenesis};
+
+    /// The FUEL payout address, on SWARM production. Reported unpayable by the
+    /// owner on 2026-09-27; nothing in this suite sends to it.
+    const FUEL_PAYOUT_UA: &str = "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv";
+
+    /// A SWARM production transparent address, reported unpayable the same day.
+    const SWARM_TRANSPARENT: &str = "s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk";
+
+    /// Thirty-two bytes of 0x07: a seed chosen to be obviously not anyone's,
+    /// so the addresses derived from it are real encodings that hold nothing.
+    const SEED: [u8; 32] = [7; 32];
+
+    /// One address of every kind a unified address can be split into.
+    struct Derived {
+        unified: String,
+        sapling: String,
+        transparent: String,
+        tex: String,
+    }
+
+    fn derive_on(chain: &ChainType) -> Derived {
+        let usk = UnifiedSpendingKey::from_seed(chain, &SEED, zip32::AccountId::ZERO)
+            .expect("a 32-byte seed derives an account");
+        // Every receiver required, not merely allowed: `Allow` settles for the
+        // first diversifier index and drops a receiver that index cannot
+        // carry, and index 0 is not a Sapling diversifier for every key.
+        let every_receiver = UnifiedAddressRequest::custom(
+            ReceiverRequirement::Require,
+            ReceiverRequirement::Require,
+            ReceiverRequirement::Require,
+        )
+        .expect("a request with shielded receivers is a valid request");
+        let (ua, _) = usk
+            .to_unified_full_viewing_key()
+            .default_address(every_receiver)
+            .expect("the account has an address with every receiver");
+        let sapling = *ua.sapling().expect("the request requires sapling");
+        let transparent = *ua.transparent().expect("the request requires p2pkh");
+        let TransparentAddress::PublicKeyHash(hash) = transparent else {
+            panic!("a derived transparent receiver is a public key hash");
+        };
+        Derived {
+            unified: Address::Unified(ua).encode(chain),
+            sapling: Address::Sapling(sapling).encode(chain),
+            transparent: Address::Transparent(transparent).encode(chain),
+            tex: Address::Tex(hash).encode(chain),
+        }
+    }
+
+    fn answer(address: &str, open: Option<ChainType>) -> json::JsonValue {
+        parse_address_answer(address, &address_chain_candidates(open))
+    }
+
+    /// Every candidate order `parse_address` can use: no wallet open, a wallet
+    /// on SWARM production, and a wallet on SwarmTestnet.
+    fn every_order() -> [Option<ChainType>; 3] {
+        [None, Some(swarm_mainnet_launch_chain()), Some(ChainType::CustomTestnet)]
+    }
+
+    fn assert_named(address: &str, chain_name: &str, kind: &str) {
+        for open in every_order() {
+            let got = answer(address, open);
+            assert_eq!(got["status"], "success", "{address} with {open:?} open: {got}");
+            assert_eq!(got["chain_name"], chain_name, "{address} with {open:?} open: {got}");
+            assert_eq!(got["address_kind"], kind, "{address} with {open:?} open: {got}");
+        }
+    }
+
+    #[test]
+    fn the_addresses_the_owner_could_not_pay_are_swarm_production_addresses() {
+        assert_named(FUEL_PAYOUT_UA, "swarm-mainnet", "unified");
+        assert_named(SWARM_TRANSPARENT, "swarm-mainnet", "transparent");
+
+        let fuel = answer(FUEL_PAYOUT_UA, None);
+        let receivers: Vec<&str> = fuel["receivers_available"]
+            .members()
+            .filter_map(|r| r.as_str())
+            .collect();
+        assert!(!receivers.is_empty(), "{fuel}");
+        if receivers.contains(&"orchard") {
+            // Re-encoded on the chain it decoded on, not on some default.
+            let only = fuel["only_orchard_ua"].as_str().expect("an orchard UA is re-encoded");
+            assert!(only.starts_with("swm1"), "{only}");
+        }
+    }
+
+    #[test]
+    fn every_kind_of_swarm_production_address_is_named_as_itself() {
+        let production = swarm_mainnet_launch_chain();
+        let derived = derive_on(&production);
+        assert!(derived.unified.starts_with("swm1"), "{}", derived.unified);
+        assert!(derived.sapling.starts_with("zswmsapling1"), "{}", derived.sapling);
+        assert!(derived.transparent.starts_with("s1"), "{}", derived.transparent);
+        assert!(derived.tex.starts_with("texswm1"), "{}", derived.tex);
+
+        assert_named(&derived.unified, "swarm-mainnet", "unified");
+        assert_named(&derived.sapling, "swarm-mainnet", "sapling");
+        assert_named(&derived.transparent, "swarm-mainnet", "transparent");
+        assert_named(&derived.tex, "swarm-mainnet", "tex");
+
+        // P2SH: the `s3…` shape the treasury funds and the collectors use.
+        let script = Address::Transparent(TransparentAddress::ScriptHash([9; 20])).encode(&production);
+        assert!(script.starts_with("s3"), "{script}");
+        assert_named(&script, "swarm-mainnet", "transparent");
+    }
+
+    #[test]
+    fn the_other_networks_keep_their_answers() {
+        let main = derive_on(&ChainType::Mainnet);
+        assert!(main.unified.starts_with("u1"), "{}", main.unified);
+        assert!(main.transparent.starts_with("t1"), "{}", main.transparent);
+        assert_named(&main.unified, "main", "unified");
+        assert_named(&main.sapling, "main", "sapling");
+        assert_named(&main.transparent, "main", "transparent");
+        assert_named(&main.tex, "main", "tex");
+
+        // The vendored protocol crate gives upstream testnet SwarmTestnet's
+        // unified HRP, so this is `swarm1…` and answers `test`, which the
+        // renderer reads as SwarmTestnet. It must never answer production.
+        let test = derive_on(&ChainType::Testnet);
+        assert!(test.unified.starts_with("swarm1"), "{}", test.unified);
+        assert!(test.transparent.starts_with("tm"), "{}", test.transparent);
+        assert_named(&test.unified, "test", "unified");
+        assert_named(&test.sapling, "test", "sapling");
+        assert_named(&test.transparent, "test", "transparent");
+        assert_named(&test.tex, "test", "tex");
+
+        let regtest = derive_on(&ChainType::Regtest(ActivationHeights::default()));
+        assert_named(&regtest.unified, "regtest", "unified");
+        assert_named(&regtest.sapling, "regtest", "sapling");
+        // Regtest's Base58 prefixes are testnet's, and testnet is tried
+        // first, so a regtest `tm…` has always answered `test`. Unchanged.
+        assert_named(&regtest.transparent, "test", "transparent");
+    }
+
+    #[test]
+    fn what_no_network_decodes_is_invalid_in_every_order() {
+        let damaged = {
+            let mut chars: Vec<char> = FUEL_PAYOUT_UA.chars().collect();
+            let last = chars.len() - 1;
+            chars[last] = if chars[last] == 'q' { 'p' } else { 'q' };
+            chars.into_iter().collect::<String>()
+        };
+        for address in ["", "swm1", "swm1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqq", "s1", damaged.as_str()] {
+            for open in every_order() {
+                let got = answer(address, open);
+                assert_eq!(got["status"], "Invalid address", "{address:?} with {open:?} open: {got}");
+                assert!(got["chain_name"].is_null(), "{got}");
+            }
+        }
+    }
+
+    #[test]
+    fn production_goes_first_only_when_the_open_wallet_is_on_it() {
+        let launch = swarm_mainnet_launch_chain();
+        match launch {
+            ChainType::SwarmMainnet(genesis) => {
+                assert_eq!(genesis.to_display_hex(), SWARM_MAINNET_LAUNCH_GENESIS)
+            }
+            other => panic!("{other} is not SWARM production"),
+        }
+
+        // No wallet, or a wallet elsewhere: upstream's three, then production.
+        for open in [None, Some(ChainType::CustomTestnet), Some(ChainType::Mainnet)] {
+            let candidates = address_chain_candidates(open);
+            assert_eq!(candidates.len(), 4, "{candidates:?}");
+            assert_eq!(candidates[3], launch, "{candidates:?}");
+        }
+
+        // A wallet on production: that wallet's own chain, first, and once.
+        let open = ChainType::SwarmMainnet(
+            SwarmMainnetGenesis::from_display_hex(&"ab".repeat(32)).expect("well formed"),
+        );
+        let candidates = address_chain_candidates(Some(open));
+        assert_eq!(candidates.len(), 4, "{candidates:?}");
+        assert_eq!(candidates[0], open, "{candidates:?}");
+        assert_eq!(
+            candidates
+                .iter()
+                .filter(|c| matches!(c, ChainType::SwarmMainnet(_)))
+                .count(),
+            1,
+            "{candidates:?}",
+        );
+    }
 }
 
 // Validates a Unified Full Viewing Key for the renderer. Called from
@@ -2974,83 +3238,90 @@ fn interpret_memo_string(memo_str: String) -> Result<MemoBytes, String> {
         .map_err(|_| format!("Error creating output. Memo '{:?}' is too long", memo_str))
 }
 
+/// Proposes the payment `send_json` describes and answers its fee, or the
+/// reason it cannot be proposed, as JSON.
+///
+/// The body of `send`, given a name so a test can drive it: a neon endpoint
+/// cannot be called without a `FunctionContext`.
+fn send_proposal_string(send_json: String) -> Result<String, ZingolibError> {
+    with_initialized_lightclient(|lightclient| {
+        Ok(RT.block_on(async move {
+            // Validation failures cross on the data channel as a
+            // structured `{ "error": .. }` object (the same shape as
+            // the propose/fee result below), never as error prose —
+            // so no success can resemble a failure.
+            let json_args = match json::parse(&send_json) {
+                Ok(parsed) => parsed,
+                // With the position and the character that broke it: a
+                // malformed send payload is a bug to locate, not a fact
+                // to state.
+                Err(e) => {
+                    return object! { "error" => format!("it is not a valid JSON. {e}") }
+                        .pretty(2);
+                }
+            };
+            let mut receivers = Receivers::new();
+            for j in json_args.members() {
+                let recipient_address = match j["address"].as_str() {
+                    Some(addr) => match ZcashAddress::try_from_encoded(addr) {
+                        Ok(a) => a,
+                        Err(e) => return object! { "error" => format!("Invalid address: {}", cause_chain(&e)) }.pretty(2),
+                    },
+                    None => return object! { "error" => "Missing address" }.pretty(2),
+                };
+                let amount = match j["amount"].as_u64() {
+                    Some(a) => match Zatoshis::from_u64(a) {
+                        Ok(a) => a,
+                        Err(e) => return object! { "error" => format!("Invalid amount: {e}") }.pretty(2),
+                    },
+                    None => return object! { "error" => "Missing amount" }.pretty(2),
+                };
+                let memo = if let Some(m) = j["memo"].as_str() {
+                    match interpret_memo_string(m.to_string()) {
+                        Ok(memo_bytes) => Some(memo_bytes),
+                        Err(e) => return object! { "error" => format!("Invalid memo: {e}") }.pretty(2),
+                    }
+                } else {
+                    None
+                };
+                receivers.push(zingolib::data::receivers::Receiver {
+                    recipient_address,
+                    amount,
+                    memo,
+                });
+            }
+            let request = match transaction_request_from_receivers(receivers)
+            {
+                Ok(request) => request,
+                Err(e) => return object! { "error" => format!("Request Error: {}", cause_chain(&e)) }.pretty(2),
+            };
+            // A memo-bearing deposit is not proposed here. It has its
+            // own shape and its own entry point, `send_swap_deposit`,
+            // because the wallet cannot attach an OP_RETURN to a
+            // shielded spend at all: that took the owned spend pipeline,
+            // and the pipeline is gone. Anything reaching this function
+            // is an ordinary send.
+            match lightclient.propose_send(request, AccountId::ZERO).await {
+                Ok(proposal) => {
+                    let fee = match zingolib::data::proposal::total_fee(&proposal) {
+                        Ok(fee) => fee,
+                        Err(e) => return object! { "error" => cause_chain(&e) }.pretty(2),
+                    };
+                    object! { "fee" => fee.into_u64() }
+                }
+                Err(e) => {
+                    object! { "error" => cause_chain(&e) }
+                }
+            }
+            .pretty(2)
+        }))
+    })
+}
+
 fn send(mut cx: FunctionContext) -> JsResult<JsPromise> {
     let send_json = cx.argument::<JsString>(0)?.value(&mut cx);
 
-    spawn_promise(&mut cx, move || -> Result<String, ZingolibError> {
-        with_initialized_lightclient(|lightclient| {
-            Ok(RT.block_on(async move {
-                // Validation failures cross on the data channel as a
-                // structured `{ "error": .. }` object (the same shape as
-                // the propose/fee result below), never as error prose —
-                // so no success can resemble a failure.
-                let json_args = match json::parse(&send_json) {
-                    Ok(parsed) => parsed,
-                    // With the position and the character that broke it: a
-                    // malformed send payload is a bug to locate, not a fact
-                    // to state.
-                    Err(e) => {
-                        return object! { "error" => format!("it is not a valid JSON. {e}") }
-                            .pretty(2);
-                    }
-                };
-                let mut receivers = Receivers::new();
-                for j in json_args.members() {
-                    let recipient_address = match j["address"].as_str() {
-                        Some(addr) => match ZcashAddress::try_from_encoded(addr) {
-                            Ok(a) => a,
-                            Err(e) => return object! { "error" => format!("Invalid address: {}", cause_chain(&e)) }.pretty(2),
-                        },
-                        None => return object! { "error" => "Missing address" }.pretty(2),
-                    };
-                    let amount = match j["amount"].as_u64() {
-                        Some(a) => match Zatoshis::from_u64(a) {
-                            Ok(a) => a,
-                            Err(e) => return object! { "error" => format!("Invalid amount: {e}") }.pretty(2),
-                        },
-                        None => return object! { "error" => "Missing amount" }.pretty(2),
-                    };
-                    let memo = if let Some(m) = j["memo"].as_str() {
-                        match interpret_memo_string(m.to_string()) {
-                            Ok(memo_bytes) => Some(memo_bytes),
-                            Err(e) => return object! { "error" => format!("Invalid memo: {e}") }.pretty(2),
-                        }
-                    } else {
-                        None
-                    };
-                    receivers.push(zingolib::data::receivers::Receiver {
-                        recipient_address,
-                        amount,
-                        memo,
-                    });
-                }
-                let request = match transaction_request_from_receivers(receivers)
-                {
-                    Ok(request) => request,
-                    Err(e) => return object! { "error" => format!("Request Error: {}", cause_chain(&e)) }.pretty(2),
-                };
-                // A memo-bearing deposit is not proposed here. It has its
-                // own shape and its own entry point, `send_swap_deposit`,
-                // because the wallet cannot attach an OP_RETURN to a
-                // shielded spend at all: that took the owned spend pipeline,
-                // and the pipeline is gone. Anything reaching this function
-                // is an ordinary send.
-                match lightclient.propose_send(request, AccountId::ZERO).await {
-                    Ok(proposal) => {
-                        let fee = match zingolib::data::proposal::total_fee(&proposal) {
-                            Ok(fee) => fee,
-                            Err(e) => return object! { "error" => cause_chain(&e) }.pretty(2),
-                        };
-                        object! { "fee" => fee.into_u64() }
-                    }
-                    Err(e) => {
-                        object! { "error" => cause_chain(&e) }
-                    }
-                }
-                .pretty(2)
-            }))
-        })
-    })
+    spawn_promise(&mut cx, move || send_proposal_string(send_json))
 }
 
 /// Pays a swap deposit that carries a memo, as the two transactions the

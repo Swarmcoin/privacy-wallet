@@ -8,7 +8,7 @@ import { ActivityList } from "../components/ActivityList";
 import { ContextApp } from "../../../context/ContextAppState";
 import routes from "../../../constants/routes.json";
 import SwarmMark from "../../logo/SwarmMark";
-import { SWARM_TICKER } from "../../../utils/swarmNetwork";
+import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
 import { ZcashURITarget } from "../../../utils/uris";
 
 /**
@@ -38,8 +38,9 @@ export const OverviewScreen: React.FC = () => {
   const [quickTo, setQuickTo] = useState("");
   const [quickAmount, setQuickAmount] = useState("");
 
+  const profile = swarmProfileOrActive(currentWallet?.chain_name);
   const balances = useMemo(() => deriveBalances(totalBalance), [totalBalance]);
-  const rows = useMemo(() => toActivityRows(valueTransfers).slice(0, 5), [valueTransfers]);
+  const rows = useMemo(() => toActivityRows(valueTransfers, profile).slice(0, 5), [valueTransfers, profile]);
 
   const walletReady = !!currentWallet?.id;
   const canSend = walletReady && !readOnly;

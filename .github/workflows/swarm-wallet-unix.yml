@@ -149,6 +149,12 @@ jobs:
         run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/components/swarm/screens/TreasuryScreen.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
       - name: Build the pinned wallet SDK adapter
         run: yarn ${{ matrix.platform == 'linux' && 'neon' || (matrix.arch == 'arm64' && 'neon-mac-arm64' || 'neon-mac-x64') }}
+      # The Windows build runs the same. Linux only here: it is the leg whose
+      # adapter is built without `--target`, so the test binary reuses every
+      # dependency the build above compiled.
+      - name: Prove the addon names SWARM Mainnet addresses and prices payments to them
+        if: matrix.platform == 'linux'
+        run: cargo test --release --manifest-path native/Cargo.toml -p zingolib-native --lib -- parse_address_tests production_wallet
       - name: Verify native prefix compatibility
         if: matrix.platform != 'mac-x64'
         run: node scripts/check-swarm-prefix-native.js
