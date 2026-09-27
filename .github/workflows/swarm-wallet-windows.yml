@@ -122,11 +122,12 @@ jobs:
       # 0.1.0-mainnet.2 to .5 answered `Invalid address` for every SWARM
       # Mainnet address (`swm1…`, `s1…`, `s3…`), so no mainnet wallet could pay
       # another: `parse_address` never tried the production profile. These are
-      # the addon's own tests for that, and for each later step of the send
-      # path against an offline production wallet. Same target and profile as
-      # the build above, so only this crate recompiles, as a test binary.
-      - name: Prove the addon names SWARM Mainnet addresses and prices payments to them
-        run: cargo test --release --target x86_64-pc-windows-msvc --manifest-path native/Cargo.toml -p zingolib-native --lib -- parse_address_tests production_wallet
+      # the addon's own tests for that: pure decoding, no wallet file and no
+      # lock. The ones that also drive an offline production wallet through
+      # the send path run on the Linux leg of the other workflow. Same target
+      # and profile as the build above, so only this crate recompiles.
+      - name: Prove the addon names SWARM Mainnet addresses
+        run: cargo test --release --target x86_64-pc-windows-msvc --manifest-path native/Cargo.toml -p zingolib-native --lib -- parse_address_tests
       # The addon's treasury tests: the published fixture scalars reproduce
       # the published 2-of-3 script hash, a signer backup opens without
       # handing back its scalar, a relay blob round trips, and two machines

@@ -3,7 +3,9 @@ import {
   formatZat,
   selectUtxos,
   selectionOrder,
+  truncationNote,
   type TreasuryUtxo,
+  type TreasuryUtxoSet,
 } from "./selectUtxos";
 
 const utxo = (over: Partial<TreasuryUtxo>): TreasuryUtxo => ({
@@ -137,5 +139,67 @@ describe("writing amounts", () => {
     expect(formatZat(1)).toBe("0.00000001");
     expect(formatZat(100_000_000)).toBe("1.00000000");
     expect(formatZat(123_456_789_012_345)).toBe("1,234,567.89012345");
+  });
+});
+
+// The Mining fund held 2775 SWM in 555 outputs on 2026-09-27 (18:0x UTC).
+// The addon loads at most 200 of them — each costs a GetTransaction to learn
+// whether it is a coinbase — and said so with `truncated: true`, which the
+// page never read: the fund looked like 200 outputs, and a payout above what
+// those 200 hold was refused as "the most this fund can pay right now".
+describe("a fund with more outputs than one payout can load", () => {
+  const five = 500_000_000;
+  const loaded = Array.from({ length: 200 }, (_, i) =>
+    utxo({ txid: i.toString(16).padStart(64, "0"), value: five, height: 1000 + i }),
+  );
+  const set = (over: Partial<TreasuryUtxoSet>): TreasuryUtxoSet => ({
+    address: "s3R1bWZPrRCtKL122ZN6uySu1ewk2ku849C",
+    chain_height: 1400,
+    coinbase_maturity: 100,
+    mature_total: 200 * five,
+    immature_total: 0,
+    utxos: loaded,
+    truncated: true,
+    total_outputs: 555,
+    total_value: 555 * five,
+    loaded_limit: 200,
+    ...over,
+  });
+
+  it("says which outputs are shown, of how many, and the one-payout ceiling", () => {
+    expect(truncationNote(set({}))).toBe(
+      "Showing the oldest 200 of 555 outputs; a payout can spend at most 200 in one go.",
+    );
+  });
+
+  it("says nothing when nothing was cut", () => {
+    expect(truncationNote(set({ truncated: false, total_outputs: 200 }))).toBe("");
+  });
+
+  it("still says it when an older addon did not count the rest", () => {
+    expect(truncationNote(set({ total_outputs: undefined, loaded_limit: undefined }))).toBe(
+      "Showing the oldest 200 outputs of more; a payout can spend at most 200 in one go.",
+    );
+  });
+
+  it("says a floor above the loaded outputs cannot be reached in one payout", () => {
+    const result = selectUtxos(loaded, 200 * five + 1, set({}));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("cannot be reached in one payout");
+    expect(result.reason).toContain("the oldest 200 of 555");
+    expect(result.reason).not.toContain("The most this fund can pay");
+  });
+
+  it("still selects when the loaded outputs reach the floor", () => {
+    const result = selectUtxos(loaded, 10 * five, set({}));
+    expect(result.ok).toBe(true);
+  });
+
+  it("keeps the old sentence for a fund that was not cut", () => {
+    const result = selectUtxos(loaded.slice(0, 2), 3 * five, set({ truncated: false, total_outputs: 2 }));
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toContain("The most this fund can pay right now");
   });
 });

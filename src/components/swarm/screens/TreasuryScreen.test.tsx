@@ -172,3 +172,16 @@ describe("TreasuryScreen, starting a payout", () => {
     expect(screen.getByRole("button", { name: "Build the proposal" })).toBeDisabled();
   });
 });
+
+describe("TreasuryScreen, a fund with more outputs than it loads", () => {
+  it("says on the Funds tab that it shows the oldest 200 of N", async () => {
+    const cut: TreasuryUtxoSet = { ...holdings(core, 200 * 500_000_000), truncated: true, total_outputs: 555, total_value: 555 * 500_000_000, loaded_limit: 200 };
+    mocked.loadFundUtxos.mockResolvedValue(cut);
+    renderTreasury();
+    const refresh = (await screen.findAllByRole("button", { name: "Refresh" }))[0];
+    await userEvent.click(refresh);
+    expect(
+      await screen.findByText("Showing the oldest 200 of 555 outputs; a payout can spend at most 200 in one go."),
+    ).toBeInTheDocument();
+  });
+});

@@ -8,6 +8,7 @@ import {
   explainSelection,
   formatZat,
   selectUtxos,
+  truncationNote,
   type TreasuryUtxoSet,
 } from "../../../treasury/selectUtxos";
 import {
@@ -207,7 +208,7 @@ export const TreasuryScreen: React.FC = () => {
     if (!utxoSet) return null;
     const zat = Math.round(Number(amount) * 100_000_000);
     if (!amount.trim() || !Number.isFinite(zat)) return null;
-    return selectUtxos(utxoSet.utxos, zat);
+    return selectUtxos(utxoSet.utxos, zat, utxoSet);
   }, [utxoSet, amount]);
 
   // -- actions ---------------------------------------------------------------
@@ -619,6 +620,11 @@ export const TreasuryScreen: React.FC = () => {
                     placeholder="What this payout is for"
                   />
 
+                  {utxoSet?.truncated && (
+                    <div className={styles.fieldNote} role="note">
+                      {truncationNote(utxoSet)}
+                    </div>
+                  )}
                   {selection && !selection.ok && (
                     <div className={styles.fieldBad} role="alert">
                       {selection.reason}
@@ -959,6 +965,16 @@ const FundsPanel: React.FC<{
                   : `${formatZat(balance.mature_total)} mature, ${formatZat(balance.immature_total)} not yet spendable (${balance.utxos.length} outputs at height ${balance.chain_height})`}
             </span>
           </div>
+          {balance !== undefined && typeof balance !== "string" && balance.truncated && (
+            <div role="note">
+              <div className={styles.fieldNote}>{truncationNote(balance)}</div>
+              {balance.total_value !== undefined && (
+                <div className={styles.fieldNote}>
+                  The whole fund holds {formatZat(balance.total_value)}; the balance above counts only what is shown.
+                </div>
+              )}
+            </div>
+          )}
           <div className={styles.actionRow}>
             <button type="button" className={styles.btnSmall} onClick={() => onRefresh(fund)}>
               Refresh

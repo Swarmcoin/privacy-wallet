@@ -75,6 +75,16 @@ struct LiveUtxos {
     immature_total: u64,
     utxos: Vec<LiveUtxo>,
     truncated: bool,
+    /// How many outputs the fund holds, loaded or not. Until 0.1.0-mainnet.6
+    /// only `truncated` said there were more, and the page did not read it:
+    /// the Mining fund (555 outputs on 2026-09-27) looked like a fund of 200.
+    total_outputs: usize,
+    /// What all of them come to, loaded or not, in zatoshis. The reply
+    /// carries every value, so this costs no request per output.
+    total_value: u64,
+    /// The most outputs one answer carries: [`MAX_UTXOS`]. A payout spends
+    /// only loaded outputs, so it is also the most one payout can spend.
+    loaded_limit: usize,
 }
 
 /// Asks the indexer what a fund's address holds.
@@ -117,8 +127,25 @@ fn utxos_from_lightwalletd(
             .await
             .map_err(|error| fail("the indexer refused the UTXO request", error))?;
 
-        let all = reply.address_utxos;
-        let truncated = all.len() > MAX_UTXOS;
+        let mut all = reply.address_utxos;
+        let total_outputs = all.len();
+        let truncated = total_outputs > MAX_UTXOS;
+        let mut total_value: u64 = 0;
+        for entry in &all {
+            let value = u64::try_from(entry.value_zat)
+                .map_err(|_| refuse("the indexer reported a negative output value"))?;
+            total_value = total_value.saturating_add(value);
+        }
+        // The oldest first, whatever order the indexer answered in: they are
+        // the most mature, and "the oldest 200" is what the page says it
+        // shows. Ties break on the outpoint so the same fund always loads the
+        // same outputs.
+        all.sort_by(|a, b| {
+            a.height
+                .cmp(&b.height)
+                .then_with(|| a.txid.cmp(&b.txid))
+                .then_with(|| a.index.cmp(&b.index))
+        });
         let mut utxos = Vec::with_capacity(all.len().min(MAX_UTXOS));
         let mut mature_total: u64 = 0;
         let mut immature_total: u64 = 0;
@@ -192,6 +219,9 @@ fn utxos_from_lightwalletd(
             immature_total,
             utxos,
             truncated,
+            total_outputs,
+            total_value,
+            loaded_limit: MAX_UTXOS,
         };
         serde_json::to_string(&answer).map_err(|error| fail("could not write the UTXO list", error))
     })

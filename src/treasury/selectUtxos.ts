@@ -33,8 +33,38 @@ export type TreasuryUtxoSet = {
   mature_total: number;
   immature_total: number;
   utxos: TreasuryUtxo[];
+  /** Whether the fund holds more outputs than `utxos` carries. */
   truncated: boolean;
+  /**
+   * How many outputs the fund holds, loaded or not. Absent from addons
+   * before 0.1.0-mainnet.6, which said only `truncated`.
+   */
+  total_outputs?: number;
+  /** What all of them come to, loaded or not, in zatoshis. */
+  total_value?: number;
+  /** The most outputs one load, and so one payout, can carry. */
+  loaded_limit?: number;
 };
+
+/** What `selectUtxos` needs to know about a set that was cut short. */
+export type LoadedExtent = Pick<TreasuryUtxoSet, "truncated" | "total_outputs" | "loaded_limit">;
+
+/**
+ * "Showing the oldest 200 of 555 outputs; …", or "" when nothing was cut.
+ *
+ * The addon loads at most a fixed number of a fund's outputs, oldest first,
+ * because each one costs an indexer request to learn whether it is a
+ * coinbase. It always said when it had stopped (`truncated`); until
+ * 0.1.0-mainnet.6 the page ignored that, so the Mining fund — 555 outputs on
+ * 2026-09-27 — looked like a fund of 200. A payout spends only loaded
+ * outputs, so the same number is the most one payout can spend.
+ */
+export function truncationNote(set: LoadedExtent & { utxos: TreasuryUtxo[] }): string {
+  if (!set.truncated) return "";
+  const loaded = set.loaded_limit ?? set.utxos.length;
+  const of = set.total_outputs !== undefined ? `of ${set.total_outputs} outputs` : "outputs of more";
+  return `Showing the oldest ${loaded} ${of}; a payout can spend at most ${loaded} in one go.`;
+}
 
 /** A selection that can be turned into a proposal. */
 export type Selection = {
@@ -82,7 +112,7 @@ export function selectionOrder(a: TreasuryUtxo, b: TreasuryUtxo): number {
  * needs its hundred confirmations, and a proposal that spends one early is a
  * proposal the network refuses after two people have signed it.
  */
-export function selectUtxos(utxos: TreasuryUtxo[], requested: number): SelectionResult {
+export function selectUtxos(utxos: TreasuryUtxo[], requested: number, extent?: LoadedExtent): SelectionResult {
   if (!Number.isFinite(requested) || requested <= 0) {
     return { ok: false, reason: "Enter how much to pay out." };
   }
@@ -103,6 +133,19 @@ export function selectUtxos(utxos: TreasuryUtxo[], requested: number): Selection
   }
 
   const matureTotal = mature.reduce((sum, u) => sum + u.value, 0);
+  if (matureTotal < requested && extent?.truncated) {
+    // Not "the most this fund can pay": the fund holds more than was loaded,
+    // and what was loaded is all one payout can spend.
+    const loaded = extent.loaded_limit ?? utxos.length;
+    const of = extent.total_outputs !== undefined ? ` of ${extent.total_outputs}` : "";
+    return {
+      ok: false,
+      reason:
+        `This floor cannot be reached in one payout. A payout spends only the outputs loaded here, ` +
+        `the oldest ${loaded}${of}, and the mature ones among them come to ${matureTotal} zat; ` +
+        `you asked for at least ${requested} zat. Pay it out in parts of at most ${matureTotal} zat.`,
+    };
+  }
   if (matureTotal < requested) {
     return {
       ok: false,
