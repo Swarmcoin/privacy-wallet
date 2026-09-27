@@ -10,4 +10,11 @@ export type RPCInfoType = {
   sapling_activation_height: number;
   consensus_branch_id: string;
   latest_block_height: number;
+  /**
+   * The chain's height-zero block hash as the server states it (SDK
+   * swarm-sdk-mainnet-1, `LightdInfo.genesisHash` field 19), or "" when the
+   * server did not say. Optional: an addon built against an older SDK omits it,
+   * and `src/utils/serverIdentity.ts` reads it only when present.
+   */
+  genesis_hash?: string;
 };
