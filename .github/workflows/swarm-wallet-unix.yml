@@ -124,11 +124,11 @@ jobs:
           SWARM_NETWORK_PROFILE: ${{ inputs.network_profile || 'swarm-testnet' }}
       - name: Validate the complete packaging configuration
         run: node scripts/check-swarm-package-config.js
-      # The signed Mac release runs only on the owner's Mac, so what it
-      # depends on is tested here, starting with the macOS install hook
-      # leaving package.json exactly as it found it.
+      # The signed Mac release runs only on the owner's Mac, so its decisions
+      # are tested here: which source tree it may sign, and that the macOS
+      # install hook leaves package.json exactly as it found it.
       - name: Check the signed Mac release gates
-        run: node --test scripts/set-resolutions-macos.test.cjs
+        run: node --test scripts/mac-release-checks.test.cjs scripts/set-resolutions-macos.test.cjs
       # Everything cheap that can refuse the build runs before the hour of
       # compilation, not after it.
       - name: Verify the pinned SDK revision and its network
@@ -257,6 +257,12 @@ jobs:
             dist/sdk-integration.json
             dist/build-profile.json
           retention-days: 14
+      # The owner's signed Mac build starts from a tree made by these same
+      # steps, so ask the signed build's own gate whether it would sign this
+      # one: only the generated network profile may differ from HEAD. Last, so
+      # a refusal never costs the packages above.
+      - name: Check a signed Mac build would accept this source tree
+        run: node scripts/mac-release-checks.cjs source --profile ${{ inputs.network_profile || 'swarm-testnet' }}
 
   verify-signed-intel:
     if: ${{ inputs.verify_signed_intel }}
