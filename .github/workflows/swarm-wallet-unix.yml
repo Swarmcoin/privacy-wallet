@@ -124,6 +124,11 @@ jobs:
           SWARM_NETWORK_PROFILE: ${{ inputs.network_profile || 'swarm-testnet' }}
       - name: Validate the complete packaging configuration
         run: node scripts/check-swarm-package-config.js
+      # The signed Mac release runs only on the owner's Mac, so what it
+      # depends on is tested here, starting with the macOS install hook
+      # leaving package.json exactly as it found it.
+      - name: Check the signed Mac release gates
+        run: node --test scripts/set-resolutions-macos.test.cjs
       # Everything cheap that can refuse the build runs before the hour of
       # compilation, not after it.
       - name: Verify the pinned SDK revision and its network
