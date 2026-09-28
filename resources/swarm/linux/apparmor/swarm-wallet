@@ -1,4 +1,4 @@
-# AppArmor profile for SWARM Wallet (Testnet).
+# AppArmor profile for SWARM Wallet: a template, filled in per build.
 #
 # Required on Ubuntu 24.04+ / Debian 13+, where unprivileged user namespaces
 # are restricted by default (kernel.apparmor_restrict_unprivileged_userns=1).
@@ -6,22 +6,25 @@
 # the app dies immediately on launch with:
 #   FATAL:zygote_host_impl_linux.cc:207 Check failed: . : Invalid argument (22)
 #
-# flags=(unconfined) — this does not sandbox the application, it only opts in
+# flags=(unconfined) - this does not sandbox the application, it only opts in
 # to the new userns permission model. The same pattern VSCode, Brave and other
 # Electron applications ship for 24.04+.
 #
 # The `abi <abi/4.0>,` line makes older parsers (Ubuntu 22.04 and earlier)
 # skip the profile cleanly instead of erroring.
 #
-# The path must match where the .deb installs the binary, which is
-# /opt/<productName>/<executableName>. Upstream's profile names
-# "/opt/Zingo PC/zingo-pc"; ours is renamed, so a copy of that file would
-# match nothing and the crash it exists to prevent would come back.
+# The path must be where the .deb installs the binary. electron-builder fills
+# in the two macros below when it packages the .deb (configs/swarm-builder.cjs,
+# `appArmorProfile`) and ships the result as resources/apparmor-profile:
+# /opt/SWARM Wallet/SWARM Wallet for the mainnet build, /opt/SWARM Wallet
+# (Testnet)/SWARM Wallet Testnet for the testnet one. Up to 0.1.0-mainnet.7
+# this file named the testnet's path outright, so on the mainnet .deb it
+# matched nothing and the crash it exists to prevent came back.
+# scripts/check-swarm-deb.js holds the built package to it in CI.
 
 abi <abi/4.0>,
 include <tunables/global>
 
-profile swarm-wallet "/opt/SWARM Wallet (Testnet)/SWARM Wallet Testnet" flags=(unconfined) {
+profile "${executable}" "/opt/${sanitizedProductName}/${executable}" flags=(unconfined) {
   userns,
-  include if exists <local/swarm-wallet>
 }

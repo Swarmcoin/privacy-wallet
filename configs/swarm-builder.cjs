@@ -139,14 +139,14 @@ module.exports = {
     target: ["AppImage", "deb"],
     category: "Office;Finance",
     // Upstream ships a polkit policy, an AppArmor profile and a `zcash:` URI
-    // wrapper, all named and pathed for Zingo PC. The first two are rewritten
-    // for this product's install path — a copy would match nothing and the
-    // crashes they prevent on Ubuntu 22.04+ and 24.04+ would come back. The
-    // third is dropped with the protocol handler.
+    // wrapper, all named and pathed for Zingo PC. The policy is ours; the
+    // AppArmor profile is generated for this build's own install path by
+    // electron-builder (`deb.appArmorProfile` below) — a copy would match
+    // nothing and the crashes it prevents on Ubuntu 24.04+ would come back.
+    // The wrapper is dropped with the protocol handler.
     extraResources: [
       { from: "resources/nym-proxy", to: "nym-proxy" },
       { from: "resources/swarm/linux/green.swarm.wallet.policy", to: "green.swarm.wallet.policy" },
-      { from: "resources/swarm/linux/apparmor/swarm-wallet", to: "apparmor-swarm-wallet" },
       ...licences,
       ...treasuryPolicies,
     ],
@@ -165,6 +165,14 @@ module.exports = {
   },
   deb: {
     ...upstream.deb,
+    // All three are templates electron-builder fills in with this build's
+    // install directory and executable when it packages the .deb, so the
+    // mainnet and the testnet package each name their own binary. The
+    // profile ships as resources/apparmor-profile. Until 0.1.0-mainnet.8 the
+    // profile was a static extraResource naming the testnet's binary, which
+    // on the mainnet package matched nothing. scripts/check-swarm-deb.js
+    // holds the built .deb to it in CI.
+    appArmorProfile: "resources/swarm/linux/apparmor/swarm-wallet",
     afterInstall: "scripts/swarm-deb-postinstall.sh",
     afterRemove: "scripts/swarm-deb-postremove.sh",
     artifactName: "SWARM-Wallet-${version}-${arch}.${ext}",

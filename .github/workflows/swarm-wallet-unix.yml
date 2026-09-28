@@ -145,7 +145,7 @@ jobs:
       - name: Keep wallet sessions and mining receipts isolated
         run: node scripts/test.js --watchAll=false --runInBand src/rpc/walletSession.test.ts src/rpc/fetchValueTransferData.test.ts src/components/swarm/swarmModel.test.ts
       - name: Verify network, endpoint and server-selection boundaries
-        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/components/walletBar/SelectWallet.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx
+        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/components/walletBar/SelectWallet.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx src/debPackage.test.ts
       # The same treasury gate the Windows build runs. The last two read
       # public/ as text: the main process and the preload are never bundled
       # and never linted, so a handler reading a name it cannot see or a
@@ -190,6 +190,15 @@ jobs:
         run: yarn electron-builder ${{ matrix.electron_flags }} --config configs/swarm-builder.cjs --publish never
       - name: Check every declared package target was produced
         run: node scripts/check-swarm-dist-targets.js ${{ matrix.platform == 'linux' && 'linux' || 'mac' }}
+      # Up to 0.1.0-mainnet.7 the mainnet .deb shipped an AppArmor profile for
+      # the testnet's binary path, which on Ubuntu 24.04+ / Debian 13+ leaves
+      # Chromium's zygote to die at launch. This reads the built package with
+      # dpkg-deb: the binary is where the build profile says, the profile
+      # attaches to exactly that binary, and postinst/postrm name no /opt path
+      # the package does not install. The AppImage is not affected.
+      - name: Check the .deb's AppArmor profile and maintainer scripts name its own binary
+        if: matrix.platform == 'linux'
+        run: node scripts/check-swarm-deb.js
       - name: Record whether the wallet server was reachable from this runner
         run: node scripts/swarm-reachability.js
       - name: Check the packaged application shows no upstream naming
