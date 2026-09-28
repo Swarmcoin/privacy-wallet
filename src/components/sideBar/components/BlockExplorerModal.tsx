@@ -23,6 +23,15 @@ type BlockExplorerModalProps = {
   modalTitle: string;
 };
 
+/**
+ * What a stored choice is shown and saved as: Custom stays Custom, and
+ * anything else — an upstream Zcash explorer an earlier version defaulted
+ * to, a removed one, nothing at all — is SWARM's explorer, the only other
+ * choice there is.
+ */
+export const shownExplorer = (stored: BlockExplorerEnum | string | undefined): BlockExplorerEnum =>
+  stored === BlockExplorerEnum.Custom ? BlockExplorerEnum.Custom : BlockExplorerEnum.Swarm;
+
 const normalizeCustom = (selected: BlockExplorerEnum, value: string) => {
   if (selected !== BlockExplorerEnum.Custom) return "";
   return value.endsWith("/") || value.endsWith("=") ? value : `${value}/`;
@@ -44,12 +53,18 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
     setBlockExplorer,
   } = useContext(ContextApp);
 
-  const [blockExplorerMainnetTransaction, setBlockExplorerMainnetTransaction] =
-    useState<BlockExplorerEnum>(ctxMainnetTransaction);
-  const [blockExplorerTestnetTransaction, setBlockExplorerTestnetTransaction] =
-    useState<BlockExplorerEnum>(ctxTestnetTransaction);
-  const [blockExplorerMainnetAddress, setBlockExplorerMainnetAddress] = useState<BlockExplorerEnum>(ctxMainnetAddress);
-  const [blockExplorerTestnetAddress, setBlockExplorerTestnetAddress] = useState<BlockExplorerEnum>(ctxTestnetAddress);
+  const [blockExplorerMainnetTransaction, setBlockExplorerMainnetTransaction] = useState<BlockExplorerEnum>(
+    shownExplorer(ctxMainnetTransaction),
+  );
+  const [blockExplorerTestnetTransaction, setBlockExplorerTestnetTransaction] = useState<BlockExplorerEnum>(
+    shownExplorer(ctxTestnetTransaction),
+  );
+  const [blockExplorerMainnetAddress, setBlockExplorerMainnetAddress] = useState<BlockExplorerEnum>(
+    shownExplorer(ctxMainnetAddress),
+  );
+  const [blockExplorerTestnetAddress, setBlockExplorerTestnetAddress] = useState<BlockExplorerEnum>(
+    shownExplorer(ctxTestnetAddress),
+  );
   const [blockExplorerMainnetTransactionCustom, setBlockExplorerMainnetTransactionCustom] =
     useState<string>(ctxMainnetTransactionCustom);
   const [blockExplorerTestnetTransactionCustom, setBlockExplorerTestnetTransactionCustom] =
@@ -64,10 +79,10 @@ const BlockExplorerModal = ({ modalIsOpen, closeModal, modalTitle }: BlockExplor
   // cancelled (or the values were changed elsewhere).
   useEffect(() => {
     if (!modalIsOpen) return;
-    setBlockExplorerMainnetTransaction(ctxMainnetTransaction);
-    setBlockExplorerTestnetTransaction(ctxTestnetTransaction);
-    setBlockExplorerMainnetAddress(ctxMainnetAddress);
-    setBlockExplorerTestnetAddress(ctxTestnetAddress);
+    setBlockExplorerMainnetTransaction(shownExplorer(ctxMainnetTransaction));
+    setBlockExplorerTestnetTransaction(shownExplorer(ctxTestnetTransaction));
+    setBlockExplorerMainnetAddress(shownExplorer(ctxMainnetAddress));
+    setBlockExplorerTestnetAddress(shownExplorer(ctxTestnetAddress));
     setBlockExplorerMainnetTransactionCustom(ctxMainnetTransactionCustom);
     setBlockExplorerTestnetTransactionCustom(ctxTestnetTransactionCustom);
     setBlockExplorerMainnetAddressCustom(ctxMainnetAddressCustom);

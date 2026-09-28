@@ -489,10 +489,10 @@ const VtModalInternal: React.FC<VtModalInternalProps> = ({
                   Utils.openTxid(
                     txid,
                     currentWallet?.chain_name,
-                    currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                    Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                       ? blockExplorerMainnetTransaction
                       : blockExplorerTestnetTransaction,
-                    currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                    Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                       ? blockExplorerMainnetTransactionCustom
                       : blockExplorerTestnetTransactionCustom,
                   )

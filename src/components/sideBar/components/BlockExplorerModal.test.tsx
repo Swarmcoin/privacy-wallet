@@ -16,10 +16,10 @@ beforeAll(() => {
 // Default block explorer values used by most tests. Individual tests can
 // override any subset by spreading and overriding when building `contextValue`.
 const defaultBlockExplorerValues = {
-  blockExplorerMainnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerMainnetAddress: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetAddress: BlockExplorerEnum.Zcashexplorer,
+  blockExplorerMainnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerMainnetAddress: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetAddress: BlockExplorerEnum.Swarm,
   blockExplorerMainnetTransactionCustom: "",
   blockExplorerTestnetTransactionCustom: "",
   blockExplorerMainnetAddressCustom: "",
@@ -145,5 +145,35 @@ describe("BlockExplorerModal", () => {
     const select = screen.getByLabelText(/Block explorer for mainnet transactions$/i);
     fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
     expect(screen.getByLabelText(/Block explorer for mainnet transactions custom URL/i)).toBeInTheDocument();
+  });
+});
+
+// The settings a SWARM wallet can choose between. Up to 0.1.0-mainnet.7 they
+// were three Zcash explorers and "Custom", with Zcashexplorer the default.
+describe("BlockExplorerModal on SWARM", () => {
+  it("offers the SWARM explorer and a custom one, and no Zcash explorer", () => {
+    renderModal();
+    for (const select of screen.getAllByRole("combobox")) {
+      const offered = Array.from((select as HTMLSelectElement).options)
+        .map((o) => o.value)
+        .filter(Boolean);
+      expect(offered).toEqual([BlockExplorerEnum.Swarm, BlockExplorerEnum.Custom]);
+    }
+  });
+
+  it("shows a setting an earlier version stored as the SWARM explorer, and saves it so", () => {
+    const { setBlockExplorer } = renderModal({
+      blockExplorerValues: {
+        blockExplorerMainnetTransaction: BlockExplorerEnum.Zcashexplorer,
+        blockExplorerMainnetAddress: BlockExplorerEnum.Cipherscan,
+      },
+    });
+    for (const select of screen.getAllByRole("combobox")) {
+      expect((select as HTMLSelectElement).value).toBe(BlockExplorerEnum.Swarm);
+    }
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    const saved = setBlockExplorer.mock.calls[0][0];
+    expect(saved.blockExplorerMainnetTransaction).toBe(BlockExplorerEnum.Swarm);
+    expect(saved.blockExplorerMainnetAddress).toBe(BlockExplorerEnum.Swarm);
   });
 });

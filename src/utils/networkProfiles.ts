@@ -111,6 +111,14 @@ export type SwarmNetworkProfile = {
   /** The first block, and so the earliest birthday a wallet here can have. */
   readonly activationHeight: number;
   /**
+   * This network's block explorer, with no trailing slash. Its paths, checked
+   * against both live explorers on 2026-09-28 with real ids:
+   * `/transactions/<txid>`, `/address/<transparent address>` and
+   * `/blocks/<height>` answer 200; `/tx/<txid>` is 404, and so is `/address/`
+   * for a shielded address, which an explorer cannot show.
+   */
+  readonly explorer: string;
+  /**
    * The leading strings that belong to this network and to no other chain this
    * application knows of.
    *
@@ -139,6 +147,7 @@ const TESTNET: SwarmNetworkProfile = {
   genesis: "045993f5c91ea160c7ebda573dd97b0016816bca68d395bfff202779b88e2a28",
   sdkChainType: "CustomTestnet",
   activationHeight: 1,
+  explorer: "https://explore.swarm.green",
   distinctivePrefixes: ["swarm1"],
 };
 
@@ -157,6 +166,8 @@ const MAINNET: SwarmNetworkProfile = {
   genesis: SWARM_MAINNET_GENESIS,
   sdkChainType: "SwarmMainnet",
   activationHeight: 1,
+  // Not explore.swarm.green: that is the testnet's.
+  explorer: "https://mainnet.explore.swarm.green",
   // Every one of SWARM production's encodings is its own: a new HRP and two
   // transparent version bytes checked against Zcash, Bitcoin, Litecoin, Dash,
   // Komodo and Horizen before they were chosen.

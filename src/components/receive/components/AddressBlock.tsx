@@ -205,10 +205,10 @@ const AddressBlock: React.FC<AddressBlockProps> = ({
                       Utils.openAddress(
                         address_address,
                         currentWallet?.chain_name,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                           ? blockExplorerMainnetAddress
                           : blockExplorerTestnetAddress,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                           ? blockExplorerMainnetAddressCustom
                           : blockExplorerTestnetAddressCustom,
                       )

@@ -40,6 +40,7 @@ import { SwapServiceProvider } from "../context/ContextSwapService";
 
 import { native } from "../electronBridge";
 import { userFacingError } from "../utils/userFacingError";
+import Utils from "../utils/utils";
 import { OrchardMigration } from "../components/orchardMigration";
 import { RPCIronwoodDrainType } from "../rpc/components/RPCIronwoodDrainType";
 import { MixnetView, deriveMixnetView } from "../rpc/components/mixnetPresenter";
@@ -327,11 +328,12 @@ const AppRoutes: React.FC = () => {
       setLocked(hasCode || deviceLock);
       setLockChecked(true);
       if (allSettings && Object.prototype.hasOwnProperty.call(allSettings, "blockexplorer")) {
-        // A previously-selected explorer may have been removed (e.g. Zypherscan).
-        // Fall any obsolete value back to Zcashexplorer across the 4 explorer fields.
+        // SWARM's explorer or a custom one are the only choices since
+        // 0.1.0-mainnet.8. A stored upstream Zcash explorer — the old default,
+        // or one removed long ago like Zypherscan — loads as SWARM's.
         const cfg = allSettings.blockexplorer;
         const fallback = (v: unknown): BlockExplorerEnum =>
-          v === "Zypherscan" ? BlockExplorerEnum.Zcashexplorer : (v as BlockExplorerEnum);
+          v === BlockExplorerEnum.Custom ? BlockExplorerEnum.Custom : BlockExplorerEnum.Swarm;
         setBlockExplorerState({
           ...cfg,
           blockExplorerMainnetTransaction: fallback(cfg?.blockExplorerMainnetTransaction),
@@ -690,7 +692,7 @@ const AppRoutes: React.FC = () => {
         // Throws on failure — the catch below surfaces it.
         const txidsResult: string = await runRPCShieldTransparentBalanceToOrchard();
         const txids: string[] = txidsResult.split(", ");
-        const isMainnet = currentWallet?.chain_name === ServerChainNameEnum.mainChainName;
+        const isMainnet = Utils.usesMainnetExplorerSettings(currentWallet?.chain_name);
         openErrorModal(
           "Successfully Broadcast Transaction",
           <ShieldResultContent

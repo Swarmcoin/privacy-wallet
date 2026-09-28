@@ -6,7 +6,7 @@ import { faArrowCircleDown, faArrowCircleUp, faExternalLinkAlt } from "@fortawes
 
 import styles from "../history/History.module.css";
 import cstyles from "../common/Common.module.css";
-import { ServerChainNameEnum } from "../appstate";
+import Utils from "../../utils/utils";
 import { ContextApp } from "../../context/ContextAppState";
 import { useSwapService } from "../../context/ContextSwapService";
 import { useCopy } from "../common/useCopy";
@@ -111,7 +111,7 @@ const SwapDetailModal: React.FC<SwapDetailModalProps> = ({
   };
 
   const trackers: TrackerEntryType[] = useMemo(() => {
-    const mainnet = currentWallet?.chain_name === ServerChainNameEnum.mainChainName;
+    const mainnet = Utils.usesMainnetExplorerSettings(currentWallet?.chain_name);
     return buildTrackerEntries({
       record,
       zecChainName: currentWallet?.chain_name,

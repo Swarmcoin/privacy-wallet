@@ -36,9 +36,12 @@ const ExplorerRow = ({
           <option value="" disabled hidden>
             Select…
           </option>
-          <option value={BlockExplorerEnum.Zcashexplorer}>Zcash Explorer App</option>
-          <option value={BlockExplorerEnum.Cipherscan}>Cipher Scan App</option>
-          <option value={BlockExplorerEnum.Zexplorer}>Zexplorer</option>
+          {/*
+            SWARM's explorer for the wallet's network, or one the user types.
+            Upstream's three Zcash explorers were offered here until
+            0.1.0-mainnet.7; none of them has ever seen a SWARM transaction.
+          */}
+          <option value={BlockExplorerEnum.Swarm}>SWARM Explorer</option>
           <option value={BlockExplorerEnum.Custom}>Custom</option>
         </select>
       </div>

@@ -454,10 +454,10 @@ const SendConfirmModal: React.FC<SendConfirmModalProps> = ({
                       Utils.openTxid(
                         txids[0],
                         currentWallet?.chain_name,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                           ? blockExplorerMainnetTransaction
                           : blockExplorerTestnetTransaction,
-                        currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                        Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                           ? blockExplorerMainnetTransactionCustom
                           : blockExplorerTestnetTransactionCustom,
                       )
@@ -475,10 +475,10 @@ const SendConfirmModal: React.FC<SendConfirmModalProps> = ({
                         Utils.openTxid(
                           txids[1],
                           currentWallet?.chain_name,
-                          currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                          Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                             ? blockExplorerMainnetTransaction
                             : blockExplorerTestnetTransaction,
-                          currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                          Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                             ? blockExplorerMainnetTransactionCustom
                             : blockExplorerTestnetTransactionCustom,
                         )
@@ -497,10 +497,10 @@ const SendConfirmModal: React.FC<SendConfirmModalProps> = ({
                         Utils.openTxid(
                           txids[2],
                           currentWallet?.chain_name,
-                          currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                          Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                             ? blockExplorerMainnetTransaction
                             : blockExplorerTestnetTransaction,
-                          currentWallet?.chain_name === ServerChainNameEnum.mainChainName
+                          Utils.usesMainnetExplorerSettings(currentWallet?.chain_name)
                             ? blockExplorerMainnetTransactionCustom
                             : blockExplorerTestnetTransactionCustom,
                         )

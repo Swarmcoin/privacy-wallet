@@ -180,8 +180,11 @@ export default class Utils {
     // reports `test` for an address a SwarmTestnet user typed. There is no
     // second alias. SWARM production is its own network type in the SDK and
     // reports its own label; `main` is upstream Zcash and satisfies nothing here.
-    return encodedNetwork === selectedNetwork ||
-      (selectedNetwork === ServerChainNameEnum.swarmTestnetChainName && encodedNetwork === ServerChainNameEnum.testChainName);
+    return (
+      encodedNetwork === selectedNetwork ||
+      (selectedNetwork === ServerChainNameEnum.swarmTestnetChainName &&
+        encodedNetwork === ServerChainNameEnum.testChainName)
+    );
   }
 
   /**
@@ -468,15 +471,40 @@ export default class Utils {
    * so callers that need the URL itself, such as the swap trackers list, read
    * the same setting the History link obeys.
    */
+  /**
+   * Whether a wallet on `chain` reads its explorer from the settings'
+   * Mainnet rows. Upstream's `main` did; SWARM Mainnet does too — until
+   * 0.1.0-mainnet.8 every caller asked `chain === "main"`, so a SWARM Mainnet
+   * wallet read the Testnet rows, which a mainnet build does not even show.
+   */
+  static usesMainnetExplorerSettings = (chainName: ServerChainNameEnum | string | undefined): boolean =>
+    chainName === ServerChainNameEnum.mainChainName || chainName === ServerChainNameEnum.swarmMainnetChainName;
+
+  /**
+   * The explorer page for a transaction.
+   *
+   * On a SWARM chain the only explorer is SWARM's own, for that chain: up to
+   * 0.1.0-mainnet.7 the settings defaulted to Zcashexplorer and "View TXID"
+   * opened https://mainnet.zcashexplorer.app/transactions/<SWARM txid> — a
+   * page that cannot exist, and a SWARM transaction id handed to a third
+   * party. So a SWARM chain ignores every stored choice but a custom URL the
+   * user typed; upstream Zcash's chains keep the explorer chosen for them.
+   */
   static zecExplorerTxUrl = (
     txid: string,
     chainName: ServerChainNameEnum | undefined,
     blockExplorer: BlockExplorerEnum,
     blockExplorerCustom: string,
   ): string => {
-    if (chainName === ServerChainNameEnum.swarmTestnetChainName && blockExplorer !== BlockExplorerEnum.Custom) return "";
+    const swarm = swarmProfileFor(chainName);
+    if (swarm) {
+      if (blockExplorer === BlockExplorerEnum.Custom && blockExplorerCustom) return `${blockExplorerCustom}${txid}`;
+      return `${swarm.explorer}/transactions/${txid}`;
+    }
     const testnet = chainName === ServerChainNameEnum.testChainName;
-    if (blockExplorer === BlockExplorerEnum.Zcashexplorer) {
+    // An upstream Zcash chain has no SWARM explorer; "Swarm" there is the
+    // default it always had.
+    if (blockExplorer === BlockExplorerEnum.Zcashexplorer || blockExplorer === BlockExplorerEnum.Swarm) {
       return testnet
         ? `https://testnet.zcashexplorer.app/transactions/${txid}`
         : `https://mainnet.zcashexplorer.app/transactions/${txid}`;
@@ -489,6 +517,48 @@ export default class Utils {
     }
     if (blockExplorer === BlockExplorerEnum.Custom) {
       return `${blockExplorerCustom}${txid}`;
+    }
+    return "";
+  };
+
+  /**
+   * The explorer page for an address, or "" when there is none to open.
+   *
+   * On a SWARM chain: SWARM's explorer, and only for a transparent address.
+   * A shielded address has no page — `/address/swm1…` is 404 — and asking
+   * for one would only tell the explorer which address this wallet cares
+   * about.
+   */
+  static zecExplorerAddressUrl = (
+    address: string,
+    chainName: ServerChainNameEnum | undefined,
+    blockExplorer: BlockExplorerEnum,
+    blockExplorerCustom: string,
+  ): string => {
+    const swarm = swarmProfileFor(chainName);
+    if (swarm) {
+      if (blockExplorer === BlockExplorerEnum.Custom && blockExplorerCustom) return `${blockExplorerCustom}${address}`;
+      const transparent = swarm.transparentPrefixes.some((prefix) => address.startsWith(prefix));
+      return transparent ? `${swarm.explorer}/address/${address}` : "";
+    }
+    const testnet = chainName === ServerChainNameEnum.testChainName;
+    if (blockExplorer === BlockExplorerEnum.Zcashexplorer || blockExplorer === BlockExplorerEnum.Swarm) {
+      return testnet
+        ? `https://testnet.zcashexplorer.app/search?qs=${address}`
+        : `https://mainnet.zcashexplorer.app/search?qs=${address}`;
+    }
+    if (blockExplorer === BlockExplorerEnum.Cipherscan) {
+      return testnet
+        ? `https://testnet.cipherscan.app/address/${address}`
+        : `https://cipherscan.app/address/${address}`;
+    }
+    if (blockExplorer === BlockExplorerEnum.Zexplorer) {
+      return testnet
+        ? `https://zexplorer.app/testnet/address/${address}`
+        : `https://zexplorer.app/mainnet/address/${address}`;
+    }
+    if (blockExplorer === BlockExplorerEnum.Custom) {
+      return `${blockExplorerCustom}${address}`;
     }
     return "";
   };
@@ -509,27 +579,7 @@ export default class Utils {
     blockExplorer: BlockExplorerEnum,
     blockExplorerCustom: string,
   ) => {
-    if (chainName === ServerChainNameEnum.swarmTestnetChainName && blockExplorer !== BlockExplorerEnum.Custom) return;
-    if (blockExplorer === BlockExplorerEnum.Zcashexplorer) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://testnet.zcashexplorer.app/search?qs=${address}`);
-      } else {
-        shell.openExternal(`https://mainnet.zcashexplorer.app/search?qs=${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Cipherscan) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://testnet.cipherscan.app/address/${address}`);
-      } else {
-        shell.openExternal(`https://cipherscan.app/address/${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Zexplorer) {
-      if (chainName === ServerChainNameEnum.testChainName) {
-        shell.openExternal(`https://zexplorer.app/testnet/address/${address}`);
-      } else {
-        shell.openExternal(`https://zexplorer.app/mainnet/address/${address}`);
-      }
-    } else if (blockExplorer === BlockExplorerEnum.Custom) {
-      shell.openExternal(`${blockExplorerCustom}${address}`);
-    }
+    const url = Utils.zecExplorerAddressUrl(address, chainName, blockExplorer, blockExplorerCustom);
+    if (url) shell.openExternal(url);
   };
 }

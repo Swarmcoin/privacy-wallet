@@ -7,7 +7,7 @@ const baseProps = {
   label: "Transactions",
   ariaLabel: "Block explorer for mainnet transactions",
   customPlaceholder: "https://mainnet.block-explorer/tx/",
-  value: BlockExplorerEnum.Zcashexplorer,
+  value: BlockExplorerEnum.Swarm,
   onChange: jest.fn(),
   customValue: "",
   onCustomChange: jest.fn(),
@@ -22,7 +22,7 @@ describe("ExplorerRow", () => {
     render(<ExplorerRow {...baseProps} />);
     expect(screen.getByText("Transactions")).toBeInTheDocument();
     const select = screen.getByRole("combobox", { name: /block explorer for mainnet transactions/i });
-    expect(select).toHaveValue(BlockExplorerEnum.Zcashexplorer);
+    expect(select).toHaveValue(BlockExplorerEnum.Swarm);
   });
 
   it("does NOT render the custom URL input when value is a predefined option", () => {
@@ -42,9 +42,9 @@ describe("ExplorerRow", () => {
     const onChange = jest.fn();
     render(<ExplorerRow {...baseProps} onChange={onChange} />);
     const select = screen.getByRole("combobox", { name: /block explorer for mainnet transactions/i });
-    fireEvent.change(select, { target: { value: BlockExplorerEnum.Cipherscan } });
+    fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith(BlockExplorerEnum.Cipherscan);
+    expect(onChange).toHaveBeenCalledWith(BlockExplorerEnum.Custom);
   });
 
   it("calls onCustomChange when the custom URL input changes", () => {

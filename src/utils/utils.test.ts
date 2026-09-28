@@ -87,11 +87,106 @@ test("custom testnet uses test addresses while rejecting mainnet and regtest enc
   expect(Utils.sameAddressNetwork(ServerChainNameEnum.regtestChainName, project)).toBe(false);
 });
 
-test("custom testnet does not send transaction or address identifiers to public explorers", () => {
-  const project = ServerChainNameEnum.swarmTestnetChainName;
-  expect(Utils.zecExplorerTxUrl("test-tx", project, BlockExplorerEnum.Zcashexplorer, "")).toBe("");
-  Utils.openAddress("test-address", project, BlockExplorerEnum.Zcashexplorer, "");
-  expect(mockOpenExternal).not.toHaveBeenCalled();
+// ---------------------------------------------------------------------------
+// Explorer links on the SWARM chains
+// ---------------------------------------------------------------------------
+//
+// Up to 0.1.0-mainnet.7 every explorer setting defaulted to Zcashexplorer, so
+// "View TXID" after a SWARM Mainnet payment opened
+// https://mainnet.zcashexplorer.app/transactions/<SWARM txid>: a page that
+// cannot exist, and a SWARM transaction id handed to a third party. On a SWARM
+// chain the only explorer is SWARM's. The paths were checked against the live
+// explorers on 2026-09-28 with real ids: /transactions/<txid>, /address/<s1…|t2…>
+// and /blocks/<height> answer 200; /tx/<txid> is 404, and so is /address/ for a
+// shielded (swm1…) address.
+describe("explorer links on the SWARM chains", () => {
+  const MAINNET = ServerChainNameEnum.swarmMainnetChainName;
+  const TESTNET = ServerChainNameEnum.swarmTestnetChainName;
+  const MAINNET_TX = "0dfdf4d12fd7f92ac8b143b38f55c25e6275bd22ebea18a852ced78c84cb30ff";
+  const TESTNET_TX = "ab8303df00bfef45ec4f2664d78fe5d59dc9d6c0a675c507ae7c7c3b2ca4c48a";
+  const ZCASH_HOSTS = /zcashexplorer|cipherscan|zexplorer|zcashnames|zec\.rocks|zcha\.in|blockchair|zypherscan/i;
+  // Everything a settings file can hold, including values earlier versions
+  // wrote and values nothing ever wrote.
+  const STORED = [...Object.values(BlockExplorerEnum), "Zypherscan", "", undefined] as BlockExplorerEnum[];
+
+  it("sends a SWARM Mainnet transaction to the SWARM Mainnet explorer, whatever the setting says", () => {
+    for (const stored of STORED) {
+      if (stored === BlockExplorerEnum.Custom) continue;
+      expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, stored, "")).toBe(
+        `https://mainnet.explore.swarm.green/transactions/${MAINNET_TX}`,
+      );
+    }
+  });
+
+  it("sends a SWARM Testnet transaction to the SWARM Testnet explorer, whatever the setting says", () => {
+    for (const stored of STORED) {
+      if (stored === BlockExplorerEnum.Custom) continue;
+      expect(Utils.zecExplorerTxUrl(TESTNET_TX, TESTNET, stored, "")).toBe(
+        `https://explore.swarm.green/transactions/${TESTNET_TX}`,
+      );
+    }
+  });
+
+  it("can produce no Zcash explorer host for either SWARM chain", () => {
+    for (const chain of [MAINNET, TESTNET]) {
+      for (const stored of STORED) {
+        for (const custom of ["", "https://my.own.explorer/tx/"]) {
+          const url = Utils.zecExplorerTxUrl("ab".repeat(32), chain, stored, custom);
+          expect(url).not.toMatch(ZCASH_HOSTS);
+          expect(url).toMatch(/^https:\/\/(mainnet\.explore\.swarm\.green|explore\.swarm\.green|my\.own\.explorer)\//);
+        }
+        mockOpenExternal.mockClear();
+        Utils.openAddress("s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk", chain, stored, "");
+        Utils.openAddress("t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n", chain, stored, "");
+        Utils.openAddress("swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxez", chain, stored, "");
+        for (const [opened] of mockOpenExternal.mock.calls) expect(opened).not.toMatch(ZCASH_HOSTS);
+      }
+    }
+  });
+
+  it("keeps a custom explorer the user typed", () => {
+    expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, BlockExplorerEnum.Custom, "https://my.own.explorer/tx/")).toBe(
+      `https://my.own.explorer/tx/${MAINNET_TX}`,
+    );
+    // Custom chosen but never filled in: the SWARM explorer, not nothing.
+    expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, BlockExplorerEnum.Custom, "")).toBe(
+      `https://mainnet.explore.swarm.green/transactions/${MAINNET_TX}`,
+    );
+  });
+
+  it("opens a transparent address on its own network's explorer", () => {
+    mockOpenExternal.mockClear();
+    Utils.openAddress("s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk", MAINNET, BlockExplorerEnum.Zcashexplorer, "");
+    Utils.openAddress("t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n", TESTNET, BlockExplorerEnum.Zcashexplorer, "");
+    expect(mockOpenExternal.mock.calls.map(([url]) => url)).toEqual([
+      "https://mainnet.explore.swarm.green/address/s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk",
+      "https://explore.swarm.green/address/t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n",
+    ]);
+  });
+
+  it("opens nothing for a shielded address, which no explorer page can show", () => {
+    mockOpenExternal.mockClear();
+    Utils.openAddress(
+      "swm1q4q6yr3rvnnqw64tqktf7plq86cnmdxezv2g5wjerfpratclfv87guyfqru4vf775ykqd8q9e7uzscmns7w6q2fpxwl5up0ez5xqe5gv",
+      MAINNET,
+      BlockExplorerEnum.Zcashexplorer,
+      "",
+    );
+    expect(mockOpenExternal).not.toHaveBeenCalled();
+  });
+
+  it("reads a SWARM Mainnet wallet's explorer from the Mainnet settings", () => {
+    expect(Utils.usesMainnetExplorerSettings(MAINNET)).toBe(true);
+    expect(Utils.usesMainnetExplorerSettings(ServerChainNameEnum.mainChainName)).toBe(true);
+    expect(Utils.usesMainnetExplorerSettings(TESTNET)).toBe(false);
+    expect(Utils.usesMainnetExplorerSettings(undefined)).toBe(false);
+  });
+
+  it("leaves upstream Zcash's chains on the explorer that was chosen for them", () => {
+    expect(Utils.zecExplorerTxUrl("t", ServerChainNameEnum.mainChainName, BlockExplorerEnum.Zcashexplorer, "")).toBe(
+      "https://mainnet.zcashexplorer.app/transactions/t",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
