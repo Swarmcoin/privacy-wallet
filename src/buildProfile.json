@@ -20,7 +20,7 @@
       "artifactSuffix": "testnet"
     },
     "swarm-mainnet": {
-      "version": "0.1.0-mainnet.8",
+      "version": "0.1.0-mainnet.9",
       "productName": "SWARM Wallet",
       "executableName": "SWARM Wallet",
       "appId": "green.swarm.wallet",

@@ -137,6 +137,13 @@ describe("SwarmShell", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("does not offer an ineffective retry for a poisoned native wallet", () => {
+    renderShell({ fetchError: { command: "ValueTransfers", error: "Lightclient lock poisoned" } });
+    expect(screen.getByText("The wallet engine needs restarting.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rebuild" })).not.toBeInTheDocument();
+  });
+
   it("toggles hide balances, and says which state it is in", async () => {
     renderShell();
     const button = screen.getByRole("button", { name: /hide balances/i });

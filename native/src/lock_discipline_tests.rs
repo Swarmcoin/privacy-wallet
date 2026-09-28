@@ -127,6 +127,57 @@ fn value_transfers_answer_beside_a_held_read_guard() {
 }
 
 #[test]
+fn sync_task_panic_does_not_poison_history_reads() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let error = with_initialized_lightclient(|_| {
+        sync_poll_result(|| panic!("task panicked: fixture sync failure"))
+    }).expect_err("a failed task must remain an error");
+    assert!(error.to_string().contains("fixture sync failure"));
+    assert!(!LIGHTCLIENT.is_poisoned());
+    let history = get_value_transfers_string().expect("a failed sync must not disable history");
+    assert!(json::parse(&history).unwrap()["value_transfers"].is_array());
+}
+
+#[test]
+fn unexpected_poll_panic_still_refuses_wallet_access() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let error = with_initialized_lightclient(|_| {
+        sync_poll_result(|| panic!("fixture unexpected client corruption"))
+    }).expect_err("an unknown panic is not a completed-task error");
+    assert!(error.to_string().contains("fixture unexpected client corruption"));
+    assert!(LIGHTCLIENT.is_poisoned());
+    assert!(get_value_transfers_string().is_err());
+    init_offline_wallet();
+}
+
+#[test]
+fn writer_panic_retains_cause_and_refuses_further_operations() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let failure: Result<(), ZingolibError> = with_initialized_lightclient(|_| {
+        panic!("fixture interrupted wallet mutation")
+    });
+    assert!(failure.unwrap_err().to_string().contains("fixture interrupted wallet mutation"));
+    assert!(LIGHTCLIENT.is_poisoned());
+    let error = get_value_transfers_string().expect_err("do not read an interrupted mutation");
+    assert!(error.to_string().contains("fixture interrupted wallet mutation"));
+    assert!(error.to_string().contains("Fully quit and reopen"));
+    let called = std::sync::atomic::AtomicBool::new(false);
+    let denied = with_initialized_lightclient(|_| {
+        called.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    });
+    assert!(denied.is_err());
+    assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
+    init_offline_wallet();
+    assert!(!LIGHTCLIENT.is_poisoned());
+    assert!(LIGHTCLIENT_PANIC.lock().unwrap().is_none());
+    assert!(get_value_transfers_string().is_ok());
+}
+
+#[test]
 fn status_sync_answers_beside_a_held_read_guard() {
     let _serial = serialized();
     init_offline_wallet();

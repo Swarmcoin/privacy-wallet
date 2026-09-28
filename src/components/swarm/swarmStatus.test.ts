@@ -91,6 +91,13 @@ describe("deriveStatus", () => {
 });
 
 describe("plainProblem", () => {
+  it("requires a restart for a poisoned engine even when its cause mentions a network error", () => {
+    const raw = "Lightclient lock poisoned. Original failure: transport error";
+    expect(plainProblem(raw)).toMatchObject({
+      kind: "wallet-session", retryable: false, technical: raw,
+    });
+    expect(plainProblem(raw)?.body).toContain("Fully quit SWARM Wallet");
+  });
   // The exact text the owner was shown.
   const dns =
     "sync: Indexer request error. ← code: 'The service is currently unavailable', " +

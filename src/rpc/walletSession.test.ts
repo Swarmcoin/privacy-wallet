@@ -44,6 +44,32 @@ beforeEach(() => {
   (native.get_latest_block_wallet as jest.Mock).mockResolvedValue('{"height":100}');
 });
 
+it("keeps the last history when the native transfer read fails", async () => {
+  const { rpc, transfers, error } = client();
+  (native.get_value_transfers as jest.Mock).mockRejectedValueOnce(new Error("Lightclient lock poisoned"));
+  await rpc.fetchTandZandOValueTransfers();
+  expect(transfers).not.toHaveBeenCalled();
+  expect(error).toHaveBeenCalledWith("ValueTransfers", expect.stringContaining("Lightclient lock poisoned"));
+});
+
+it.each(["", "{}", '{"value_transfers":null}', "not-json"])(
+  "does not clear history for a malformed native response: %s", async (response) => {
+    const { rpc, transfers, error } = client();
+    (native.get_value_transfers as jest.Mock).mockResolvedValueOnce(response);
+    await rpc.fetchTandZandOValueTransfers();
+    expect(transfers).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledWith("ValueTransfers", expect.any(String));
+  },
+);
+
+it("still accepts a successfully loaded empty history", async () => {
+  const { rpc, transfers, error } = client();
+  (native.get_value_transfers as jest.Mock).mockResolvedValueOnce('{"value_transfers":[]}');
+  await rpc.fetchTandZandOValueTransfers();
+  expect(transfers).toHaveBeenCalledWith([]);
+  expect(error).not.toHaveBeenCalled();
+});
+
 it("discards the previous wallet's balance after polling is stopped", async () => {
   const pending = deferred<string>();
   (native.get_balance as jest.Mock).mockReturnValueOnce(pending.promise);

@@ -161,6 +161,10 @@ jobs:
       - name: Prove the addon reads SWARM addresses and chain hints
         if: matrix.platform == 'linux'
         run: cargo test --release --locked --manifest-path native/Cargo.toml --lib -p zingolib-native -- swarm_address_parsing chain_hint_tests
+      - name: Prove wallet panic containment and history preservation
+        run: |
+          cargo test --release --locked --manifest-path native/Cargo.toml --lib -p zingolib-native -- lock_discipline_tests --test-threads=1
+          node scripts/test.js --watchAll=false --runInBand src/rpc/walletSession.test.ts src/components/swarm/swarmStatus.test.ts src/components/swarm/SwarmShell.test.tsx src/components/swarm/screens/ActivityScreen.test.tsx
       - name: Verify native prefix compatibility
         if: matrix.platform != 'mac-x64'
         run: node scripts/check-swarm-prefix-native.js
