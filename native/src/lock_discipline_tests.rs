@@ -52,10 +52,16 @@ fn report_panics_to_stderr() {
 /// reachable tests the weather.
 fn init_offline_wallet() {
     report_panics_to_stderr();
-    let dir = std::env::temp_dir().join("zingo-pc-lock-discipline");
-    // The wallet refuses to create over an existing file, so each test starts
-    // from an empty directory. The previous client is dropped first: on Windows
-    // it still holds the file it wrote, and the delete would fail.
+    let dir = std::env::temp_dir().join(format!("swarm-wallet-lock-discipline-{}", std::process::id()));
+    // Dropping LightClient does not stop its save task. Await this fixture's
+    // final save before removing its files, otherwise that task can recreate
+    // the file between cleanup and the next test's initialization. The fixture
+    // contains only public test data, including in the injected-panic tests.
+    with_lightclient_write(|slot| {
+        if let Some(client) = slot.as_mut() {
+            RT.block_on(client.shutdown_save_task()).expect("stop the previous fixture saver");
+        }
+    });
     reset_lightclient();
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("the fixture needs somewhere to write");
@@ -124,6 +130,74 @@ fn value_transfers_answer_beside_a_held_read_guard() {
         answer["value_transfers"].is_array() && answer["value_transfers"].is_empty(),
         "the fixture wallet's history is an empty list: {answer}"
     );
+}
+
+#[test]
+fn sync_task_panic_does_not_poison_history_reads() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let error = with_initialized_lightclient(|_| {
+        sync_poll_result(|| {
+            // Mirror the pinned SDK's completed-task boundary using a real
+            // Tokio JoinError, including its production panic payload shape.
+            let joined: Result<(), tokio::task::JoinError> = RT.block_on(async {
+                tokio::spawn(async { panic!("fixture sync failure") }).await
+            });
+            joined.expect("task panicked");
+            unreachable!("the fixture task must fail");
+        })
+    }).expect_err("a failed task must remain an error");
+    assert!(error.to_string().contains("fixture sync failure"));
+    assert!(!LIGHTCLIENT.is_poisoned());
+    let history = get_value_transfers_string().expect("a failed sync must not disable history");
+    assert!(json::parse(&history).unwrap()["value_transfers"].is_array());
+    let called = std::sync::atomic::AtomicBool::new(false);
+    let denied = with_initialized_lightclient(|_| {
+        called.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    });
+    assert!(matches!(denied, Err(ZingolibError::SyncTaskStopped(_))));
+    assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
+    init_offline_wallet();
+    assert!(with_initialized_lightclient(|_| Ok(())).is_ok());
+}
+
+#[test]
+fn unexpected_poll_panic_still_refuses_wallet_access() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let error = with_initialized_lightclient(|_| {
+        sync_poll_result(|| panic!("fixture unexpected client corruption: task panicked"))
+    }).expect_err("an unknown panic is not a completed-task error");
+    assert!(error.to_string().contains("fixture unexpected client corruption"));
+    assert!(LIGHTCLIENT.is_poisoned());
+    assert!(get_value_transfers_string().is_err());
+    init_offline_wallet();
+}
+
+#[test]
+fn writer_panic_retains_cause_and_refuses_further_operations() {
+    let _serial = serialized();
+    init_offline_wallet();
+    let failure: Result<(), ZingolibError> = with_initialized_lightclient(|_| {
+        panic!("fixture interrupted wallet mutation")
+    });
+    assert!(failure.unwrap_err().to_string().contains("fixture interrupted wallet mutation"));
+    assert!(LIGHTCLIENT.is_poisoned());
+    let error = get_value_transfers_string().expect_err("do not read an interrupted mutation");
+    assert!(error.to_string().contains("fixture interrupted wallet mutation"));
+    assert!(error.to_string().contains("Fully quit and reopen"));
+    let called = std::sync::atomic::AtomicBool::new(false);
+    let denied = with_initialized_lightclient(|_| {
+        called.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    });
+    assert!(denied.is_err());
+    assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
+    init_offline_wallet();
+    assert!(!LIGHTCLIENT.is_poisoned());
+    assert!(LIGHTCLIENT_PANIC.lock().unwrap().is_none());
+    assert!(get_value_transfers_string().is_ok());
 }
 
 #[test]

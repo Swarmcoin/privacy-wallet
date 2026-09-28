@@ -306,8 +306,8 @@ fn verify_mac_user(mut cx: FunctionContext) -> JsResult<JsPromise> {
 pub enum ZingolibError {
     #[error("Error: Lightclient is not initialized")]
     LightclientNotInitialized,
-    #[error("Error: Lightclient lock poisoned")]
-    LightclientLockPoisoned,
+    #[error("Error: Lightclient lock poisoned. Fully quit and reopen SWARM Wallet. Original failure: {0}")]
+    LightclientLockPoisoned(String),
     #[error("Error: panic: {0}")]
     Panic(String),
     #[error("Error: saving wallet: {0}")]
@@ -316,6 +316,8 @@ pub enum ZingolibError {
     Init(String),
     #[error("Error: sync: {0}")]
     Sync(String),
+    #[error("Error: Sync task stopped unexpectedly. Fully quit and reopen SWARM Wallet. Original failure: {0}")]
+    SyncTaskStopped(String),
     #[error("Error: rescan: {0}")]
     Rescan(String),
     #[error("Error: read: {0}")]
@@ -350,23 +352,26 @@ struct PanicReport {
     backtrace: Option<String>,
 }
 
-static LAST_PANIC: Lazy<Mutex<PanicReport>> =
-    Lazy::new(|| Mutex::new(PanicReport::default()));
+thread_local! {
+    static LAST_PANIC: std::cell::RefCell<PanicReport> = std::cell::RefCell::new(PanicReport::default());
+}
+
+// Keep the first writer or background-sync failure available to later calls.
+// Reset only when the client itself is replaced, never to resume a failed write.
+static LIGHTCLIENT_PANIC: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+fn lightclient_poison_error() -> ZingolibError {
+    let reason = LIGHTCLIENT_PANIC.lock().ok().and_then(|r| r.clone())
+        .unwrap_or_else(|| "The original panic was not captured.".to_string());
+    ZingolibError::LightclientLockPoisoned(reason)
+}
 
 fn set_last_panic(report: PanicReport) {
-    if let Ok(mut r) = LAST_PANIC.lock() {
-        *r = report;
-    }
+    LAST_PANIC.with(|r| *r.borrow_mut() = report);
 }
 
 fn take_last_panic() -> PanicReport {
-    if let Ok(mut r) = LAST_PANIC.lock() {
-        let out = r.clone();
-        *r = PanicReport::default();
-        out
-    } else {
-        PanicReport::default()
-    }
+    LAST_PANIC.with(|r| std::mem::take(&mut *r.borrow_mut()))
 }
 
 static PANIC_HOOK_ONCE: Once = Once::new();
@@ -489,12 +494,14 @@ where
 fn reset_lightclient() {
     with_lightclient_write(|slot| {
         *slot = None;
+        if let Ok(mut reason) = LIGHTCLIENT_PANIC.lock() { *reason = None; }
     });
 }
 
 fn store_client(lightclient: LightClient) -> Result<(), ZingolibError> {
     with_lightclient_write(|slot| {
         *slot = Some(lightclient);
+        if let Ok(mut reason) = LIGHTCLIENT_PANIC.lock() { *reason = None; }
     });
     Ok(())
 }
@@ -1291,9 +1298,30 @@ where
     with_panic_guard(|| {
         let mut guard = LIGHTCLIENT
             .write()
-            .map_err(|_| ZingolibError::LightclientLockPoisoned)?;
+            .map_err(|_| lightclient_poison_error())?;
+        // A background sync may have stopped partway through updating wallet
+        // state. Allow snapshots, but refuse further mutations in this session.
+        if let Some(reason) = LIGHTCLIENT_PANIC.lock().ok().and_then(|r| r.clone()) {
+            return Err(ZingolibError::SyncTaskStopped(reason));
+        }
         match &mut *guard {
-            Some(lightclient) => f(lightclient),
+            Some(lightclient) => {
+                let result = with_panic_guard(panic::AssertUnwindSafe(|| f(lightclient)));
+                if let Err(ZingolibError::SyncTaskStopped(reason)) = &result {
+                    if let Ok(mut original) = LIGHTCLIENT_PANIC.lock() {
+                        *original = Some(reason.clone());
+                    }
+                }
+                if let Err(ZingolibError::Panic(reason)) = result {
+                    if let Ok(mut original) = LIGHTCLIENT_PANIC.lock() {
+                        *original = Some(reason.clone());
+                    }
+                    // Preserve poisoning for an interrupted mutation. Its state
+                    // must not be reused just because the panic was caught.
+                    panic::resume_unwind(Box::new(reason));
+                }
+                result
+            }
             None => Err(ZingolibError::LightclientNotInitialized),
         }
     })
@@ -1316,7 +1344,7 @@ where
     with_panic_guard(|| {
         let guard = LIGHTCLIENT
             .read()
-            .map_err(|_| ZingolibError::LightclientLockPoisoned)?;
+            .map_err(|_| lightclient_poison_error())?;
         match &*guard {
             Some(lightclient) => f(lightclient),
             None => Err(ZingolibError::LightclientNotInitialized),
@@ -1387,22 +1415,46 @@ fn get_value_transfers(mut cx: FunctionContext) -> JsResult<JsPromise> {
     spawn_promise(&mut cx, get_value_transfers_string)
 }
 
-fn poll_sync(mut cx: FunctionContext) -> JsResult<JsPromise> {
-    spawn_promise(&mut cx, move || -> Result<String, ZingolibError> {
-        with_initialized_lightclient(|lightclient| {
-            match lightclient.poll_sync() {
-                PollReport::NoHandle => Ok("Sync task has not been launched.".to_string()),
-                PollReport::NotReady => Ok("Sync task is not complete.".to_string()),
-                PollReport::Ready(result) => match result {
-                    Ok(sync_result) => {
-                        Ok(json::object! { "sync_complete" => json::JsonValue::from(sync_result) }
-                            .pretty(2))
-                    }
-                    Err(e) => Err(ZingolibError::Sync(cause_chain(&e))),
-                },
-            }
-        })
+fn with_sync_task_guard<T>(
+    work: impl FnOnce() -> Result<T, ZingolibError> + UnwindSafe,
+) -> Result<T, ZingolibError> {
+    // The pinned SDK removes the completed handle and resets SyncMode before
+    // expecting its JoinError to be successful. Catch that task failure here,
+    // while the outer client guard is still held, preserving snapshot reads.
+    // The caller latches the fault to block payments and all further mutations
+    // until the client is replaced; the task may have interrupted an update.
+    with_panic_guard(work).map_err(|error| match error {
+        ZingolibError::Panic(reason) if reason.contains("task panicked: JoinError::") => {
+            ZingolibError::SyncTaskStopped(reason)
+        }
+        other => other,
     })
+}
+
+fn sync_poll_result(
+    poll: impl FnOnce() -> PollReport<
+        pepper_sync::sync::SyncResult,
+        pepper_sync::error::SyncError<zingolib::wallet::error::WalletError>,
+    >,
+) -> Result<String, ZingolibError> {
+    with_sync_task_guard(panic::AssertUnwindSafe(|| match poll() {
+        PollReport::NoHandle => Ok("Sync task has not been launched.".to_string()),
+        PollReport::NotReady => Ok("Sync task is not complete.".to_string()),
+        PollReport::Ready(result) => match result {
+            Ok(sync_result) => Ok(
+                json::object! { "sync_complete" => json::JsonValue::from(sync_result) }.pretty(2),
+            ),
+            Err(e) => Err(ZingolibError::Sync(cause_chain(&e))),
+        },
+    }))
+}
+
+fn poll_sync_string() -> Result<String, ZingolibError> {
+    with_initialized_lightclient(|lightclient| sync_poll_result(|| lightclient.poll_sync()))
+}
+
+fn poll_sync(mut cx: FunctionContext) -> JsResult<JsPromise> {
+    spawn_promise(&mut cx, poll_sync_string)
 }
 
 fn run_sync(mut cx: FunctionContext) -> JsResult<JsPromise> {
@@ -1418,7 +1470,8 @@ fn run_sync(mut cx: FunctionContext) -> JsResult<JsPromise> {
                     Err(e) => Err(ZingolibError::Sync(cause_chain(&e))),
                 }
             } else {
-                RT.block_on(async move {
+                // sync() also polls a completed task on its launch-timeout path.
+                with_sync_task_guard(panic::AssertUnwindSafe(|| RT.block_on(async move {
                     match lightclient.sync().await {
                         Ok(_) => Ok("Launching sync task...".to_string()),
                         // Launching is idempotent: a concurrent launch
@@ -1430,7 +1483,7 @@ fn run_sync(mut cx: FunctionContext) -> JsResult<JsPromise> {
                         )) => Ok("Sync task already running.".to_string()),
                         Err(e) => Err(ZingolibError::Sync(cause_chain(&e))),
                     }
-                })
+                })))
             }
         })
     })
@@ -2094,7 +2147,7 @@ fn drain_orchard_to_ironwood(mut cx: FunctionContext) -> JsResult<JsPromise> {
             // wallet lock, so `drain_status()` can poll it concurrently.
             *DRAIN_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)? =
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The drain progress lock failed.".to_string()))? =
                 Some(lightclient.immediate_migration_progress_handle());
             Ok(RT.block_on(async move {
                 match lightclient.quick_immediate_migration(zip32::AccountId::ZERO, true).await {
@@ -2125,7 +2178,7 @@ fn drain_status(mut cx: FunctionContext) -> JsResult<JsPromise> {
         with_panic_guard(|| {
             let handle = DRAIN_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)?
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The drain progress lock failed.".to_string()))?
                 .clone();
             match handle.and_then(|h| h.status()) {
                 Some(s) => Ok(object! {
@@ -2605,7 +2658,7 @@ fn execute_due_parts(mut cx: FunctionContext) -> JsResult<JsPromise> {
         with_initialized_lightclient(|lightclient| {
             *BATCH_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)? =
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The batch progress lock failed.".to_string()))? =
                 Some(lightclient.batch_progress_handle());
             let out = RT.block_on(async move {
                 let report = lightclient
@@ -2630,7 +2683,7 @@ fn execute_due_parts_status(mut cx: FunctionContext) -> JsResult<JsPromise> {
             use zingolib::lightclient::migrate::BatchPhase;
             let handle = BATCH_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)?
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The batch progress lock failed.".to_string()))?
                 .clone();
             match handle.and_then(|h| h.status()) {
                 Some(s) => Ok(object! {

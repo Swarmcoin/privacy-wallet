@@ -14,6 +14,7 @@ import {
 import { ContextApp } from "../../../context/ContextAppState";
 import { useCopy } from "../../common/useCopy";
 import { SWARM_TICKER, swarmProfileOrActive } from "../../../utils/swarmNetwork";
+import { plainProblem } from "../swarmStatus";
 
 /**
  * Activity: every transfer this wallet knows about, with a detail panel.
@@ -152,7 +153,10 @@ const DetailPanel: React.FC<{ row: SwarmActivityRow | null; hidden: boolean }> =
 
 export const ActivityScreen: React.FC = () => {
   const { hidden } = useContext(SwarmUiContext);
-  const { valueTransfers, currentWallet } = useContext(ContextApp);
+  const { valueTransfers, currentWallet, fetchError } = useContext(ContextApp);
+  const historyUnavailable = !!fetchError?.error && (
+    fetchError.command === "ValueTransfers" || plainProblem(fetchError.error)?.kind === "wallet-session"
+  );
   const profile = swarmProfileOrActive(currentWallet?.chain_name);
 
   const [filter, setFilter] = useState<string>("all");
@@ -197,17 +201,22 @@ export const ActivityScreen: React.FC = () => {
         <section className={styles.panel} aria-label="Activity">
           <div className={styles.panelHead}>
             <div className={styles.panelTitle}>
-              {visible.length} {visible.length === 1 ? "transfer" : "transfers"}
+              {historyUnavailable ? "History unavailable" : `${visible.length} ${visible.length === 1 ? "transfer" : "transfers"}`}
             </div>
           </div>
           <div className={styles.panelBody}>
+            {historyUnavailable && rows.length > 0 && (
+              <p role="status">Showing the last loaded transfers. This list could not be refreshed.</p>
+            )}
             <ActivityList
               rows={visible}
               hidden={hidden}
               onSelect={(row) => setSelectedKey(row.key)}
               selectedKey={selectedKey}
               emptyText={
-                rows.length === 0
+                historyUnavailable
+                  ? "Transfer history could not be loaded. This does not mean the wallet has no transfers."
+                  : rows.length === 0
                   ? "Nothing yet. Payments and block rewards will appear here as they confirm."
                   : "No transfer matches that."
               }

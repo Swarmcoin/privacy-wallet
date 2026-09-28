@@ -133,7 +133,7 @@ export function deriveStatus(
   };
 }
 
-export type SwarmProblemKind = "unreachable" | "funds" | "wallet" | "shard-tree" | "unknown";
+export type SwarmProblemKind = "unreachable" | "funds" | "wallet" | "wallet-session" | "shard-tree" | "unknown";
 
 export type SwarmProblem = {
   kind: SwarmProblemKind;
@@ -203,6 +203,16 @@ export function plainProblem(raw: string | undefined | null, host?: string): Swa
 
   const lower = technical.toLowerCase();
   const server = host && host.trim() ? host.trim() : "the wallet server";
+
+  if (lower.includes("lightclient lock poisoned") || lower.includes("sync task stopped unexpectedly")) {
+    return {
+      kind: "wallet-session",
+      headline: "The wallet engine needs restarting.",
+      body: "Fully quit SWARM Wallet and reopen it. Retrying here cannot restart the engine. If a payment was in progress, check its status after reopening before sending it again.",
+      retryable: false,
+      technical,
+    };
+  }
 
   if (UNREACHABLE.some((needle) => lower.includes(needle))) {
     return {

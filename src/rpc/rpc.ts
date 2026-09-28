@@ -877,18 +877,18 @@ export default class RPC {
       const txValueTransfersStr: string = await native.get_value_transfers();
       if (!this.isCurrent(session)) return [];
       if (!txValueTransfersStr) {
-        console.error("Internal Error txs ValueTransfers");
-        this.fnSetFetchError("ValueTransfers", "Internal RPC Error");
-        return [];
+        throw new Error("The wallet returned no transfer history.");
       }
       const txValueTransfersJSON = JSON.parse(txValueTransfersStr);
-
+      if (!Array.isArray(txValueTransfersJSON.value_transfers)) {
+        throw new Error("The wallet returned an invalid transfer history.");
+      }
       return txValueTransfersJSON.value_transfers;
     } catch (error) {
       if (!this.isCurrent(session)) return [];
       this.fnSetFetchError("ValueTransfers", `Critical Error value transfers ${error}`);
       console.error(`Critical Error value transfers ${error}`);
-      return [];
+      throw error;
     }
   }
 
@@ -1158,6 +1158,8 @@ export default class RPC {
 
       setter(list);
     } catch (error) {
+      if (!this.isCurrent(session)) return;
+      this.fnSetFetchError(fetchLabel, userFacingError(error));
       console.error(`Critical Error ${fetchLabel.toLowerCase()} ${error}`);
     }
   }
