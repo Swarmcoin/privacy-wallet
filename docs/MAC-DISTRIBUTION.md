@@ -1,11 +1,9 @@
 # macOS direct-download builds
 
-This is the only path that produces a SWARM Wallet a Mac will open after a
-browser download: signed with a Developer ID Application identity, notarized,
-stapled and verified on the owner's Apple-silicon Mac, for Apple silicon and
-Intel. **Mainnet (`swarm-mainnet`) is the default**; testnet is a variant below.
-It does not touch wallet profiles or recovery material and does not upload a
-release.
+Direct-download releases are signed with a Developer ID Application identity,
+notarized, stapled and verified. The universal path below combines Intel and
+Apple silicon into one app. **Mainnet (`swarm-mainnet`) is the default**.
+The build scripts leave wallet profiles and recovery material untouched.
 
 The macOS packages CI produces (`.github/workflows/swarm-wallet-unix.yml`,
 step "Package the unsigned test wallet") are integration builds, not releases:
@@ -20,9 +18,48 @@ What is and is not proven: the decisions the release scripts make (which tree
 may be signed, the release file names, what counts as a Developer ID signature,
 the packaged identity) are unit-tested on any machine
 (`node --test scripts/mac-release-checks.test.cjs`, also a step of the unix
-workflow). The macOS steps themselves — codesign, notarytool, stapler, spctl —
-run only on the owner's Mac; the last signed wallet was `0.1.0-testnet.7`
-(2026-09-24), before the mainnet profile existed.
+workflow). Signing and notarization run on the owner's Mac. The signed
+universal package is also checked on an Intel GitHub runner before the website
+download changes.
+
+## One universal mainnet app
+
+Use the two unsigned integration artifacts from the same successful CI run.
+The assembler checks their ZIP checksums, source commit, generated mainnet
+profile, Cargo lockfile, SDK revision and genesis. It verifies package identity
+before merging, then checks every Mach-O for both architectures.
+
+```sh
+gh run download <successful-run-id> --repo Swarm-Official/privacy-wallet \
+  -n swarm-wallet-mac-arm64-unsigned-swarm-mainnet \
+  -n swarm-wallet-mac-x64-unsigned-swarm-mainnet -D /tmp/swarm-mac-inputs
+APPLE_KEYCHAIN_PROFILE=SWARM-notary node scripts/build-mac-universal.cjs \
+  --source <full-app-source-sha> \
+  --arm64 /tmp/swarm-mac-inputs/swarm-wallet-mac-arm64-unsigned-swarm-mainnet \
+  --x64 /tmp/swarm-mac-inputs/swarm-wallet-mac-x64-unsigned-swarm-mainnet \
+  --out /tmp/swarm-mac-universal-release
+```
+
+The output directory must be new. `out/` contains the universal DMG and ZIP,
+`SHA256SUMS-mac-universal` and `release-manifest-mac-universal.json`.
+Both the app and DMG receive Apple notarization tickets. The manifest records
+the application source and assembler source separately. The app supports
+macOS 12 or later and macOS selects the native architecture automatically.
+
+For a Mac-only release, publish these four files under
+`swarm-wallet-<version>-macos`. Keep other platform drafts separate. Then run:
+
+```sh
+gh workflow run swarm-wallet-unix.yml --repo Swarm-Official/privacy-wallet \
+  --ref codex/macos-universal-mainnet \
+  -f verify_signed_intel=true -f network_profile=swarm-mainnet \
+  -f signed_mac_arch=universal -f signed_intel_tag=swarm-wallet-<version>-macos
+```
+
+This checks both architectures in every native file, Gatekeeper, notarization,
+the ZIP signature, native address parsing and app startup on Intel hardware.
+Run the corresponding smoke test on Apple silicon with a disposable profile.
+Update the website to one primary Mac DMG download after these checks pass.
 
 ## Pins
 
