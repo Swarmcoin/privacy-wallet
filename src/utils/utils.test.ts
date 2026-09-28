@@ -111,7 +111,6 @@ describe("explorer links on the SWARM chains", () => {
 
   it("sends a SWARM Mainnet transaction to the SWARM Mainnet explorer, whatever the setting says", () => {
     for (const stored of STORED) {
-      if (stored === BlockExplorerEnum.Custom) continue;
       expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, stored, "")).toBe(
         `https://mainnet.explore.swarm.green/transactions/${MAINNET_TX}`,
       );
@@ -120,9 +119,8 @@ describe("explorer links on the SWARM chains", () => {
 
   it("sends a SWARM Testnet transaction to the SWARM Testnet explorer, whatever the setting says", () => {
     for (const stored of STORED) {
-      if (stored === BlockExplorerEnum.Custom) continue;
       expect(Utils.zecExplorerTxUrl(TESTNET_TX, TESTNET, stored, "")).toBe(
-        `https://explore.swarm.green/transactions/${TESTNET_TX}`,
+        `https://testnet.explore.swarm.green/transactions/${TESTNET_TX}`,
       );
     }
   });
@@ -130,10 +128,10 @@ describe("explorer links on the SWARM chains", () => {
   it("can produce no Zcash explorer host for either SWARM chain", () => {
     for (const chain of [MAINNET, TESTNET]) {
       for (const stored of STORED) {
-        for (const custom of ["", "https://my.own.explorer/tx/"]) {
+        for (const custom of ["", "https://mainnet.zcashexplorer.app/transactions/", "https://my.own.explorer/tx/"]) {
           const url = Utils.zecExplorerTxUrl("ab".repeat(32), chain, stored, custom);
           expect(url).not.toMatch(ZCASH_HOSTS);
-          expect(url).toMatch(/^https:\/\/(mainnet\.explore\.swarm\.green|explore\.swarm\.green|my\.own\.explorer)\//);
+          expect(url).toMatch(/^https:\/\/(mainnet\.explore\.swarm\.green|testnet\.explore\.swarm\.green)\//);
         }
         mockOpenExternal.mockClear();
         Utils.openAddress("s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk", chain, stored, "");
@@ -144,9 +142,9 @@ describe("explorer links on the SWARM chains", () => {
     }
   });
 
-  it("keeps a custom explorer the user typed", () => {
+  it("replaces saved custom explorer URLs with the SWARM explorer", () => {
     expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, BlockExplorerEnum.Custom, "https://my.own.explorer/tx/")).toBe(
-      `https://my.own.explorer/tx/${MAINNET_TX}`,
+      `https://mainnet.explore.swarm.green/transactions/${MAINNET_TX}`,
     );
     // Custom chosen but never filled in: the SWARM explorer, not nothing.
     expect(Utils.zecExplorerTxUrl(MAINNET_TX, MAINNET, BlockExplorerEnum.Custom, "")).toBe(
@@ -160,7 +158,7 @@ describe("explorer links on the SWARM chains", () => {
     Utils.openAddress("t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n", TESTNET, BlockExplorerEnum.Zcashexplorer, "");
     expect(mockOpenExternal.mock.calls.map(([url]) => url)).toEqual([
       "https://mainnet.explore.swarm.green/address/s1UsiRFq4FrtHUbHobXxssCN7EVCcu9GvFk",
-      "https://explore.swarm.green/address/t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n",
+      "https://testnet.explore.swarm.green/address/t2DGVURG5tAyXXSkj85JV5xbvTobYv7H99n",
     ]);
   });
 
@@ -182,10 +180,34 @@ describe("explorer links on the SWARM chains", () => {
     expect(Utils.usesMainnetExplorerSettings(undefined)).toBe(false);
   });
 
-  it("leaves upstream Zcash's chains on the explorer that was chosen for them", () => {
-    expect(Utils.zecExplorerTxUrl("t", ServerChainNameEnum.mainChainName, BlockExplorerEnum.Zcashexplorer, "")).toBe(
-      "https://mainnet.zcashexplorer.app/transactions/t",
-    );
+  it("disables explorer links when the wallet has no SWARM chain", () => {
+    for (const chain of [
+      undefined,
+      ServerChainNameEnum.mainChainName,
+      ServerChainNameEnum.testChainName,
+      ServerChainNameEnum.regtestChainName,
+      "unknown" as ServerChainNameEnum,
+    ]) {
+      for (const stored of STORED) {
+        Utils.openTxid(MAINNET_TX, chain, stored, "https://mainnet.zcashexplorer.app/transactions/");
+        Utils.openAddress("s1address", chain, stored, "https://mainnet.zcashexplorer.app/address/");
+      }
+    }
+    expect(mockOpenExternal).not.toHaveBeenCalled();
+  });
+
+  it("keeps custom address settings on the network's transparent explorer", () => {
+    for (const [chain, host, address] of [
+      [MAINNET, "mainnet.explore.swarm.green", "s1address"],
+      [TESTNET, "testnet.explore.swarm.green", "tmaddress"],
+    ] as const) {
+      expect(Utils.zecExplorerAddressUrl(address, chain, BlockExplorerEnum.Custom, "https://outside.example/")).toBe(
+        `https://${host}/address/${address}`,
+      );
+      expect(
+        Utils.zecExplorerAddressUrl("swm1shielded", chain, BlockExplorerEnum.Custom, "https://outside.example/"),
+      ).toBe("");
+    }
   });
 });
 
@@ -555,78 +577,16 @@ describe("the donation defaults left over from upstream", () => {
 // ---------------------------------------------------------------------------
 // openTxid
 // ---------------------------------------------------------------------------
-describe("openTxid", () => {
-  const txid = "abc123txid";
-
-  it("opens Zcashexplorer mainnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Zcashexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://mainnet.zcashexplorer.app/transactions/${txid}`);
-  });
-
-  it("opens Zcashexplorer testnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.testChainName, BlockExplorerEnum.Zcashexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://testnet.zcashexplorer.app/transactions/${txid}`);
-  });
-
-  it("opens Cipherscan mainnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Cipherscan, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://cipherscan.app/tx/${txid}`);
-  });
-
-  it("opens Cipherscan testnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.testChainName, BlockExplorerEnum.Cipherscan, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://testnet.cipherscan.app/tx/${txid}`);
-  });
-
-  it("opens Zexplorer mainnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Zexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://zexplorer.app/mainnet/tx/${txid}`);
-  });
-
-  it("opens Zexplorer testnet URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.testChainName, BlockExplorerEnum.Zexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://zexplorer.app/testnet/tx/${txid}`);
-  });
-
-  it("opens custom block explorer URL", () => {
-    Utils.openTxid(txid, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Custom, "https://custom.explorer/tx/");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://custom.explorer/tx/${txid}`);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// openAddress
-// ---------------------------------------------------------------------------
-describe("openAddress", () => {
-  const address = "u1testaddress000000000000000";
-
-  it("opens Zcashexplorer mainnet address URL", () => {
-    Utils.openAddress(address, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Zcashexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://mainnet.zcashexplorer.app/search?qs=${address}`);
-  });
-
-  it("opens Zcashexplorer testnet address URL", () => {
-    Utils.openAddress(address, ServerChainNameEnum.testChainName, BlockExplorerEnum.Zcashexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://testnet.zcashexplorer.app/search?qs=${address}`);
-  });
-
-  it("opens Cipherscan mainnet address URL", () => {
-    Utils.openAddress(address, ServerChainNameEnum.mainChainName, BlockExplorerEnum.Cipherscan, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://cipherscan.app/address/${address}`);
-  });
-
-  it("opens Zexplorer testnet address URL", () => {
-    Utils.openAddress(address, ServerChainNameEnum.testChainName, BlockExplorerEnum.Zexplorer, "");
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://zexplorer.app/testnet/address/${address}`);
-  });
-
-  it("opens custom block explorer address URL", () => {
-    Utils.openAddress(
-      address,
-      ServerChainNameEnum.mainChainName,
+describe("opening a SWARM transaction", () => {
+  it("opens the official explorer after loading a legacy custom URL", () => {
+    Utils.openTxid(
+      "ab".repeat(32),
+      ServerChainNameEnum.swarmMainnetChainName,
       BlockExplorerEnum.Custom,
-      "https://custom.explorer/addr/",
+      "https://mainnet.zcashexplorer.app/transactions/",
     );
-    expect(mockOpenExternal).toHaveBeenCalledWith(`https://custom.explorer/addr/${address}`);
+    expect(mockOpenExternal).toHaveBeenCalledWith(
+      `https://mainnet.explore.swarm.green/transactions/${"ab".repeat(32)}`,
+    );
   });
 });

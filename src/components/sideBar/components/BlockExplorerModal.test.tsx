@@ -78,102 +78,31 @@ describe("BlockExplorerModal", () => {
     expect(closeModal).toHaveBeenCalledTimes(1);
   });
 
-  // Which build this runs as is whatever `src/buildProfile.json` says: the
-  // repository's own profile is the testnet, and a mainnet CI run writes
-  // `swarm-mainnet` there first. A mainnet build shows no "Testnet" section
-  // (0.1.0-mainnet.6); src/mainnetWording.test.tsx renders that case on every run.
-  it("renders the Mainnet section, and the Testnet one only on a testnet build", () => {
-    renderModal();
-    expect(screen.getByText("Mainnet")).toBeInTheDocument();
-    if (ACTIVE_SWARM_PROFILE.id === "swarm-mainnet") {
-      expect(screen.queryByText("Testnet")).toBeNull();
-    } else {
-      expect(screen.getByText("Testnet")).toBeInTheDocument();
-    }
-  });
-
-  it("calls setBlockExplorer with the form values when Save is clicked", () => {
-    const { setBlockExplorer, closeModal } = renderModal();
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    expect(setBlockExplorer).toHaveBeenCalledTimes(1);
-    expect(setBlockExplorer).toHaveBeenCalledWith(expect.objectContaining(defaultBlockExplorerValues));
-    expect(closeModal).toHaveBeenCalled();
-  });
-
-  it("disables Save when Custom is selected but URL is empty", () => {
+  it("shows only the active SWARM network and its official explorer", () => {
     renderModal({
-      blockExplorerValues: { blockExplorerMainnetTransaction: BlockExplorerEnum.Custom },
-    });
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
-  });
-
-  it("normalizes custom URLs to end in '/' on save", () => {
-    const { setBlockExplorer } = renderModal({
       blockExplorerValues: {
         blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
-        blockExplorerMainnetTransactionCustom: "https://my.explorer/tx",
+        blockExplorerMainnetTransactionCustom: "https://mainnet.zcashexplorer.app/transactions/",
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("https://my.explorer/tx/");
+    expect(screen.getByText(ACTIVE_SWARM_PROFILE.displayName)).toBeInTheDocument();
+    expect(screen.getByText(ACTIVE_SWARM_PROFILE.explorer)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/zcashexplorer/)).not.toBeInTheDocument();
   });
 
-  it("preserves custom URLs that already end in '='", () => {
-    const { setBlockExplorer } = renderModal({
+  it("saves SWARM defaults and clears stored custom explorer destinations", () => {
+    const { setBlockExplorer, closeModal } = renderModal({
       blockExplorerValues: {
         blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
-        blockExplorerMainnetTransactionCustom: "https://my.explorer/tx?hash=",
+        blockExplorerMainnetTransactionCustom: "https://mainnet.zcashexplorer.app/transactions/",
+        blockExplorerTestnetAddress: BlockExplorerEnum.Zcashexplorer,
+        blockExplorerTestnetAddressCustom: "https://outside.example/",
       },
     });
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("https://my.explorer/tx?hash=");
-  });
-
-  it("clears the custom field when the selection is not Custom", () => {
-    const { setBlockExplorer } = renderModal({
-      blockExplorerValues: { blockExplorerMainnetTransactionCustom: "https://leftover.example/" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("");
-  });
-
-  it("changes Mainnet Transactions selector to Custom and reveals the custom URL input", () => {
-    renderModal();
-    const select = screen.getByLabelText(/Block explorer for mainnet transactions$/i);
-    fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
-    expect(screen.getByLabelText(/Block explorer for mainnet transactions custom URL/i)).toBeInTheDocument();
-  });
-});
-
-// The settings a SWARM wallet can choose between. Up to 0.1.0-mainnet.7 they
-// were three Zcash explorers and "Custom", with Zcashexplorer the default.
-describe("BlockExplorerModal on SWARM", () => {
-  it("offers the SWARM explorer and a custom one, and no Zcash explorer", () => {
-    renderModal();
-    for (const select of screen.getAllByRole("combobox")) {
-      const offered = Array.from((select as HTMLSelectElement).options)
-        .map((o) => o.value)
-        .filter(Boolean);
-      expect(offered).toEqual([BlockExplorerEnum.Swarm, BlockExplorerEnum.Custom]);
-    }
-  });
-
-  it("shows a setting an earlier version stored as the SWARM explorer, and saves it so", () => {
-    const { setBlockExplorer } = renderModal({
-      blockExplorerValues: {
-        blockExplorerMainnetTransaction: BlockExplorerEnum.Zcashexplorer,
-        blockExplorerMainnetAddress: BlockExplorerEnum.Cipherscan,
-      },
-    });
-    for (const select of screen.getAllByRole("combobox")) {
-      expect((select as HTMLSelectElement).value).toBe(BlockExplorerEnum.Swarm);
-    }
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransaction).toBe(BlockExplorerEnum.Swarm);
-    expect(saved.blockExplorerMainnetAddress).toBe(BlockExplorerEnum.Swarm);
+    expect(setBlockExplorer).toHaveBeenCalledWith(defaultBlockExplorerValues);
+    expect(closeModal).toHaveBeenCalledTimes(1);
   });
 });

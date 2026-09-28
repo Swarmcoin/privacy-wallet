@@ -194,8 +194,8 @@ yarn release:prep 2.0.15 142
 
 **Block explorers**
 
-- User-selectable per-network explorer for transactions and addresses
-  (Zcashexplorer, Cipherscan, Zexplorer, or a custom URL)
+- Official SWARM explorer for the wallet's network, for transactions and transparent addresses.
+- Saved third-party and custom explorer settings migrate to SWARM's explorer.
 
 **Security**
 

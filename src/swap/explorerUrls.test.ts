@@ -18,7 +18,7 @@ import type { SwapRecordType } from "./types/SwapRecordType";
 jest.mock("../electronBridge");
 
 const explorer = {
-  zecChainName: ServerChainNameEnum.mainChainName,
+  zecChainName: ServerChainNameEnum.swarmMainnetChainName,
   zecBlockExplorer: BlockExplorerEnum.Zcashexplorer,
   zecBlockExplorerCustom: "",
 };

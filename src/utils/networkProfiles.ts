@@ -147,7 +147,7 @@ const TESTNET: SwarmNetworkProfile = {
   genesis: "045993f5c91ea160c7ebda573dd97b0016816bca68d395bfff202779b88e2a28",
   sdkChainType: "CustomTestnet",
   activationHeight: 1,
-  explorer: "https://explore.swarm.green",
+  explorer: "https://testnet.explore.swarm.green",
   distinctivePrefixes: ["swarm1"],
 };
 
