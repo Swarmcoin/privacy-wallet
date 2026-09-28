@@ -52,10 +52,16 @@ fn report_panics_to_stderr() {
 /// reachable tests the weather.
 fn init_offline_wallet() {
     report_panics_to_stderr();
-    let dir = std::env::temp_dir().join("zingo-pc-lock-discipline");
-    // The wallet refuses to create over an existing file, so each test starts
-    // from an empty directory. The previous client is dropped first: on Windows
-    // it still holds the file it wrote, and the delete would fail.
+    let dir = std::env::temp_dir().join(format!("swarm-wallet-lock-discipline-{}", std::process::id()));
+    // Dropping LightClient does not stop its save task. Await this fixture's
+    // final save before removing its files, otherwise that task can recreate
+    // the file between cleanup and the next test's initialization. The fixture
+    // contains only public test data, including in the injected-panic tests.
+    with_lightclient_write(|slot| {
+        if let Some(client) = slot.as_mut() {
+            RT.block_on(client.shutdown_save_task()).expect("stop the previous fixture saver");
+        }
+    });
     reset_lightclient();
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("the fixture needs somewhere to write");
