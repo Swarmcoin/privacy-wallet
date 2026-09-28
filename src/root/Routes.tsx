@@ -1,3 +1,4 @@
+import { swarmExplorerSettings } from "../utils/explorerSettings";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactModal from "react-modal";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
@@ -24,7 +25,6 @@ import {
   ServerClass,
   ServerChainNameEnum,
   ServerSelectionEnum,
-  BlockExplorerEnum,
 } from "../components/appstate";
 import RPC from "../rpc/rpc";
 import { ZcashURITarget } from "../utils/uris";
@@ -243,7 +243,8 @@ const AppRoutes: React.FC = () => {
   // both atomically. Loaded at boot inside the existing `loadSettings` effect
   // below, so consumers (Sidebar, BlockExplorerModal) read it directly from
   // context with no prop drilling.
-  const setBlockExplorer = useCallback(async (blockExplorer: any) => {
+  const setBlockExplorer = useCallback(async () => {
+    const blockExplorer = swarmExplorerSettings();
     setBlockExplorerState(blockExplorer);
     try {
       await ipcRenderer.invoke("saveSettings", { key: "blockexplorer", value: blockExplorer });
@@ -326,18 +327,7 @@ const AppRoutes: React.FC = () => {
       setLocked(hasCode || deviceLock);
       setLockChecked(true);
       if (allSettings && Object.prototype.hasOwnProperty.call(allSettings, "blockexplorer")) {
-        // A previously-selected explorer may have been removed (e.g. Zypherscan).
-        // Fall any obsolete value back to Zcashexplorer across the 4 explorer fields.
-        const cfg = allSettings.blockexplorer;
-        const fallback = (v: unknown): BlockExplorerEnum =>
-          v === "Zypherscan" ? BlockExplorerEnum.Zcashexplorer : (v as BlockExplorerEnum);
-        setBlockExplorerState({
-          ...cfg,
-          blockExplorerMainnetTransaction: fallback(cfg?.blockExplorerMainnetTransaction),
-          blockExplorerTestnetTransaction: fallback(cfg?.blockExplorerTestnetTransaction),
-          blockExplorerMainnetAddress: fallback(cfg?.blockExplorerMainnetAddress),
-          blockExplorerTestnetAddress: fallback(cfg?.blockExplorerTestnetAddress),
-        });
+        setBlockExplorerState(swarmExplorerSettings());
       }
     })();
 

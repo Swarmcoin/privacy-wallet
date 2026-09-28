@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "../../../test-utils";
 import BlockExplorerModal from "./BlockExplorerModal";
 import { BlockExplorerEnum } from "../../appstate";
 import { ContextApp, defaultAppState } from "../../../context/ContextAppState";
+import { ACTIVE_SWARM_PROFILE } from "../../../utils/swarmNetwork";
 
 beforeAll(() => {
   const div = document.createElement("div");
@@ -15,10 +16,10 @@ beforeAll(() => {
 // Default block explorer values used by most tests. Individual tests can
 // override any subset by spreading and overriding when building `contextValue`.
 const defaultBlockExplorerValues = {
-  blockExplorerMainnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetTransaction: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerMainnetAddress: BlockExplorerEnum.Zcashexplorer,
-  blockExplorerTestnetAddress: BlockExplorerEnum.Zcashexplorer,
+  blockExplorerMainnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetTransaction: BlockExplorerEnum.Swarm,
+  blockExplorerMainnetAddress: BlockExplorerEnum.Swarm,
+  blockExplorerTestnetAddress: BlockExplorerEnum.Swarm,
   blockExplorerMainnetTransactionCustom: "",
   blockExplorerTestnetTransactionCustom: "",
   blockExplorerMainnetAddressCustom: "",
@@ -77,64 +78,31 @@ describe("BlockExplorerModal", () => {
     expect(closeModal).toHaveBeenCalledTimes(1);
   });
 
-  it("renders both Mainnet and Testnet sections", () => {
-    renderModal();
-    expect(screen.getByText("Mainnet")).toBeInTheDocument();
-    expect(screen.getByText("Testnet")).toBeInTheDocument();
-  });
-
-  it("calls setBlockExplorer with the form values when Save is clicked", () => {
-    const { setBlockExplorer, closeModal } = renderModal();
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    expect(setBlockExplorer).toHaveBeenCalledTimes(1);
-    expect(setBlockExplorer).toHaveBeenCalledWith(expect.objectContaining(defaultBlockExplorerValues));
-    expect(closeModal).toHaveBeenCalled();
-  });
-
-  it("disables Save when Custom is selected but URL is empty", () => {
+  it("shows only the active SWARM network and its official explorer", () => {
     renderModal({
-      blockExplorerValues: { blockExplorerMainnetTransaction: BlockExplorerEnum.Custom },
-    });
-    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
-  });
-
-  it("normalizes custom URLs to end in '/' on save", () => {
-    const { setBlockExplorer } = renderModal({
       blockExplorerValues: {
         blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
-        blockExplorerMainnetTransactionCustom: "https://my.explorer/tx",
+        blockExplorerMainnetTransactionCustom: "https://mainnet.zcashexplorer.app/transactions/",
+      },
+    });
+    expect(screen.getByText(ACTIVE_SWARM_PROFILE.displayName)).toBeInTheDocument();
+    expect(screen.getByText(ACTIVE_SWARM_PROFILE.explorer)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/zcashexplorer/)).not.toBeInTheDocument();
+  });
+
+  it("saves SWARM defaults and clears stored custom explorer destinations", () => {
+    const { setBlockExplorer, closeModal } = renderModal({
+      blockExplorerValues: {
+        blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
+        blockExplorerMainnetTransactionCustom: "https://mainnet.zcashexplorer.app/transactions/",
+        blockExplorerTestnetAddress: BlockExplorerEnum.Zcashexplorer,
+        blockExplorerTestnetAddressCustom: "https://outside.example/",
       },
     });
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("https://my.explorer/tx/");
-  });
-
-  it("preserves custom URLs that already end in '='", () => {
-    const { setBlockExplorer } = renderModal({
-      blockExplorerValues: {
-        blockExplorerMainnetTransaction: BlockExplorerEnum.Custom,
-        blockExplorerMainnetTransactionCustom: "https://my.explorer/tx?hash=",
-      },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("https://my.explorer/tx?hash=");
-  });
-
-  it("clears the custom field when the selection is not Custom", () => {
-    const { setBlockExplorer } = renderModal({
-      blockExplorerValues: { blockExplorerMainnetTransactionCustom: "https://leftover.example/" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
-    const saved = setBlockExplorer.mock.calls[0][0];
-    expect(saved.blockExplorerMainnetTransactionCustom).toBe("");
-  });
-
-  it("changes Mainnet Transactions selector to Custom and reveals the custom URL input", () => {
-    renderModal();
-    const select = screen.getByLabelText(/Block explorer for mainnet transactions$/i);
-    fireEvent.change(select, { target: { value: BlockExplorerEnum.Custom } });
-    expect(screen.getByLabelText(/Block explorer for mainnet transactions custom URL/i)).toBeInTheDocument();
+    expect(setBlockExplorer).toHaveBeenCalledWith(defaultBlockExplorerValues);
+    expect(closeModal).toHaveBeenCalledTimes(1);
   });
 });

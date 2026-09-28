@@ -175,10 +175,10 @@ export default class AppState {
     this.delegateServerChoice = () => {};
     this.reopenWallet = () => {};
     this.avoidedServers = [];
-    this.blockExplorerMainnetTransaction = BlockExplorerEnum.Zcashexplorer;
-    this.blockExplorerTestnetTransaction = BlockExplorerEnum.Zcashexplorer;
-    this.blockExplorerMainnetAddress = BlockExplorerEnum.Zcashexplorer;
-    this.blockExplorerTestnetAddress = BlockExplorerEnum.Zcashexplorer;
+    this.blockExplorerMainnetTransaction = BlockExplorerEnum.Swarm;
+    this.blockExplorerTestnetTransaction = BlockExplorerEnum.Swarm;
+    this.blockExplorerMainnetAddress = BlockExplorerEnum.Swarm;
+    this.blockExplorerTestnetAddress = BlockExplorerEnum.Swarm;
     this.blockExplorerMainnetTransactionCustom = "";
     this.blockExplorerTestnetTransactionCustom = "";
     this.blockExplorerMainnetAddressCustom = "";

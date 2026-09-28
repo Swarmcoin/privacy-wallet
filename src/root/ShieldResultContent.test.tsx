@@ -9,7 +9,7 @@ const { shell } = require("../electronBridge");
 
 const baseProps = {
   txids: ["txid-aaaa"],
-  chainName: ServerChainNameEnum.mainChainName,
+  chainName: ServerChainNameEnum.swarmMainnetChainName,
   blockExplorerTransaction: BlockExplorerEnum.Zcashexplorer,
   blockExplorerTransactionCustom: "",
 };
@@ -43,9 +43,9 @@ describe("ShieldResultContent", () => {
     expect(screen.queryByText(/View TXID/)).not.toBeInTheDocument();
   });
 
-  it("opens the right explorer URL when View TXID is clicked (mainnet zcashexplorer)", () => {
+  it("opens the SWARM explorer when View TXID is clicked with a legacy setting", () => {
     render(<ShieldResultContent {...baseProps} txids={["abc123"]} />);
     fireEvent.click(screen.getByText(/View TXID/));
-    expect(shell.openExternal).toHaveBeenCalledWith("https://mainnet.zcashexplorer.app/transactions/abc123");
+    expect(shell.openExternal).toHaveBeenCalledWith("https://mainnet.explore.swarm.green/transactions/abc123");
   });
 });

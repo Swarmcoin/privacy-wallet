@@ -117,7 +117,7 @@ const SwapDetailModal: React.FC<SwapDetailModalProps> = ({
       zecChainName: currentWallet?.chain_name,
       zecBlockExplorer: mainnet ? blockExplorerMainnetTransaction : blockExplorerTestnetTransaction,
       zecBlockExplorerCustom: mainnet ? blockExplorerMainnetTransactionCustom : blockExplorerTestnetTransactionCustom,
-    });
+    }).filter((tracker) => tracker.onZcash);
   }, [
     record,
     currentWallet,
@@ -434,7 +434,7 @@ const SwapDetailModal: React.FC<SwapDetailModalProps> = ({
           {/* Named groups, so the split is announced as well as seen. */}
           {[
             { label: "Trackers", entries: trackers.filter((tracker) => !tracker.onZcash) },
-            { label: "Zcash transactions", entries: trackers.filter((tracker) => tracker.onZcash) },
+            { label: "SWARM transactions", entries: trackers.filter((tracker) => tracker.onZcash) },
           ]
             .filter((row) => row.entries.length > 0)
             .map(({ label, entries: row }, index) => (

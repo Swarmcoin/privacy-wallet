@@ -110,6 +110,7 @@ export type SwarmNetworkProfile = {
   readonly sdkChainType: "CustomTestnet" | "SwarmMainnet";
   /** The first block, and so the earliest birthday a wallet here can have. */
   readonly activationHeight: number;
+  readonly explorer: string;
   /**
    * The leading strings that belong to this network and to no other chain this
    * application knows of.
@@ -124,6 +125,7 @@ export type SwarmNetworkProfile = {
 
 const TESTNET: SwarmNetworkProfile = {
   id: SwarmProfileIdEnum.testnet,
+  explorer: "https://testnet.explore.swarm.green",
   chainLabel: ServerChainNameEnum.swarmTestnetChainName,
   displayName: "SWARM Testnet",
   ticker: "SWM",
@@ -144,6 +146,7 @@ const TESTNET: SwarmNetworkProfile = {
 
 const MAINNET: SwarmNetworkProfile = {
   id: SwarmProfileIdEnum.mainnet,
+  explorer: "https://mainnet.explore.swarm.green",
   chainLabel: ServerChainNameEnum.swarmMainnetChainName,
   displayName: "SWARM Mainnet",
   ticker: "SWM",

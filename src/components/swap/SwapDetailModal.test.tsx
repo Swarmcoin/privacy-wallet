@@ -215,7 +215,7 @@ describe("SwapDetailModal ending", () => {
 // row they made the screen wide. The trackers and the other chains take the
 // first row and the Zcash transactions the second.
 describe("SwapDetailModal trackers", () => {
-  it("puts the Zcash transactions on a row of their own", () => {
+  it("shows only SWARM explorer links for wallet transactions", () => {
     render(
       <SwapDetailModal
         record={record({
@@ -233,14 +233,11 @@ describe("SwapDetailModal trackers", () => {
         closeModal={jest.fn()}
         onRemove={jest.fn()}
       />,
-      { contextOverrides: { currentWallet: { chain_name: "main" } as never } },
+      { contextOverrides: { currentWallet: { chain_name: "swarm-mainnet" } as never } },
     );
 
-    const trackersRow = within(screen.getByRole("group", { name: "Trackers" }));
-    const zcashRow = within(screen.getByRole("group", { name: "Zcash transactions" }));
-
-    expect(trackersRow.getByRole("button", { name: /SwapKit Explorer/ })).toBeInTheDocument();
-    expect(trackersRow.getByRole("button", { name: /Destination chain explorer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Trackers" })).not.toBeInTheDocument();
+    const zcashRow = within(screen.getByRole("group", { name: "SWARM transactions" }));
     expect(zcashRow.getByRole("button", { name: /Source chain explorer/ })).toBeInTheDocument();
     expect(zcashRow.getByRole("button", { name: /Source chain hop 1/ })).toBeInTheDocument();
     expect(zcashRow.queryByRole("button", { name: /SwapKit Explorer/ })).not.toBeInTheDocument();
