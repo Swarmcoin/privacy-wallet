@@ -45,7 +45,8 @@ function plistValue(plist, key) {
 module.exports = async function verifyMacSignedApp(context) {
   if (context.electronPlatformName !== "darwin") throw new Error("Expected a macOS app");
   const buildProfile = JSON.parse(fs.readFileSync(path.join(__dirname, "../src/buildProfile.json"), "utf8"));
-  const identity = buildProfile.profiles[buildProfile.profile];
+  const network = context.swarmNetworkProfile || buildProfile.profile;
+  const identity = buildProfile.profiles[network];
   const app = path.join(context.appOutDir, `${identity.executableName}.app`);
   const resources = path.join(app, "Contents/Resources");
 
@@ -54,9 +55,9 @@ module.exports = async function verifyMacSignedApp(context) {
   for (const key of ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleExecutable"]) plist[key] = plistValue(infoPlist, key);
   const asar = require("@electron/asar");
   const packaged = JSON.parse(asar.extractFile(path.join(resources, "app.asar"), "package.json").toString("utf8"));
-  const identityProblems = checks.packagedIdentityProblems({ plist, packaged, identity, profile: buildProfile.profile });
+  const identityProblems = checks.packagedIdentityProblems({ plist, packaged, identity, profile: network });
   if (identityProblems.length > 0) {
-    throw new Error(`The packaged app is not ${identity.productName} ${identity.version} (${buildProfile.profile}):\n- ${identityProblems.join("\n- ")}`);
+    throw new Error(`The packaged app is not ${identity.productName} ${identity.version} (${network}):\n- ${identityProblems.join("\n- ")}`);
   }
 
   const nym = path.join(resources, "nym-proxy");
@@ -97,7 +98,7 @@ module.exports = async function verifyMacSignedApp(context) {
   const addons = files.filter((entry) => entry.file.endsWith(".node")).length;
   const executables = files.filter((entry) => entry.executable).length;
   console.log(
-    `Verified ${identity.productName} ${identity.version} (${buildProfile.profile}): all ${files.length} Mach-O files ` +
+    `Verified ${identity.productName} ${identity.version} (${network}): all ${files.length} Mach-O files ` +
       `(${executables} executables with the hardened runtime, ${addons} native addons, the Nym helper) carry ` +
       `Developer ID signatures of team ${outer.teamIdentifier} with secure timestamps`,
   );
