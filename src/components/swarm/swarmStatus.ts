@@ -204,7 +204,7 @@ export function plainProblem(raw: string | undefined | null, host?: string): Swa
   const lower = technical.toLowerCase();
   const server = host && host.trim() ? host.trim() : "the wallet server";
 
-  if (lower.includes("lightclient lock poisoned")) {
+  if (lower.includes("lightclient lock poisoned") || lower.includes("sync task stopped unexpectedly")) {
     return {
       kind: "wallet-session",
       headline: "The wallet engine needs restarting.",

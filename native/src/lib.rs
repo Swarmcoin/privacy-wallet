@@ -316,6 +316,8 @@ pub enum ZingolibError {
     Init(String),
     #[error("Error: sync: {0}")]
     Sync(String),
+    #[error("Error: Sync task stopped unexpectedly. Fully quit and reopen SWARM Wallet. Original failure: {0}")]
+    SyncTaskStopped(String),
     #[error("Error: rescan: {0}")]
     Rescan(String),
     #[error("Error: read: {0}")]
@@ -354,7 +356,7 @@ thread_local! {
     static LAST_PANIC: std::cell::RefCell<PanicReport> = std::cell::RefCell::new(PanicReport::default());
 }
 
-// Keep the first writer failure available after polling encounters the poison.
+// Keep the first writer or background-sync failure available to later calls.
 // Reset only when the client itself is replaced, never to resume a failed write.
 static LIGHTCLIENT_PANIC: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
@@ -1297,9 +1299,19 @@ where
         let mut guard = LIGHTCLIENT
             .write()
             .map_err(|_| lightclient_poison_error())?;
+        // A background sync may have stopped partway through updating wallet
+        // state. Allow snapshots, but refuse further mutations in this session.
+        if let Some(reason) = LIGHTCLIENT_PANIC.lock().ok().and_then(|r| r.clone()) {
+            return Err(ZingolibError::SyncTaskStopped(reason));
+        }
         match &mut *guard {
             Some(lightclient) => {
                 let result = with_panic_guard(panic::AssertUnwindSafe(|| f(lightclient)));
+                if let Err(ZingolibError::SyncTaskStopped(reason)) = &result {
+                    if let Ok(mut original) = LIGHTCLIENT_PANIC.lock() {
+                        *original = Some(reason.clone());
+                    }
+                }
                 if let Err(ZingolibError::Panic(reason)) = result {
                     if let Ok(mut original) = LIGHTCLIENT_PANIC.lock() {
                         *original = Some(reason.clone());
@@ -1408,11 +1420,12 @@ fn with_sync_task_guard<T>(
 ) -> Result<T, ZingolibError> {
     // The pinned SDK removes the completed handle and resets SyncMode before
     // expecting its JoinError to be successful. Catch that task failure here,
-    // while the outer client guard is still held; it is not a failed client
-    // mutation and must not disable unrelated balance/history reads.
+    // while the outer client guard is still held, preserving snapshot reads.
+    // The caller latches the fault to block payments and all further mutations
+    // until the client is replaced; the task may have interrupted an update.
     with_panic_guard(work).map_err(|error| match error {
         ZingolibError::Panic(reason) if reason.contains("task panicked: JoinError::") => {
-            ZingolibError::Sync(format!("Sync task stopped unexpectedly: {reason}"))
+            ZingolibError::SyncTaskStopped(reason)
         }
         other => other,
     })

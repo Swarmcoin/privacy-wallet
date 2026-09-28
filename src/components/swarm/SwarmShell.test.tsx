@@ -137,8 +137,8 @@ describe("SwarmShell", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it("does not offer an ineffective retry for a poisoned native wallet", () => {
-    renderShell({ fetchError: { command: "ValueTransfers", error: "Lightclient lock poisoned" } });
+  it.each(["Lightclient lock poisoned", "Sync task stopped unexpectedly"])("does not offer an ineffective retry for %s", (error) => {
+    renderShell({ fetchError: { command: "ValueTransfers", error } });
     expect(screen.getByText("The wallet engine needs restarting.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Rebuild" })).not.toBeInTheDocument();

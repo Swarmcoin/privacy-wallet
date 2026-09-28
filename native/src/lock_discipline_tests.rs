@@ -145,6 +145,15 @@ fn sync_task_panic_does_not_poison_history_reads() {
     assert!(!LIGHTCLIENT.is_poisoned());
     let history = get_value_transfers_string().expect("a failed sync must not disable history");
     assert!(json::parse(&history).unwrap()["value_transfers"].is_array());
+    let called = std::sync::atomic::AtomicBool::new(false);
+    let denied = with_initialized_lightclient(|_| {
+        called.store(true, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    });
+    assert!(matches!(denied, Err(ZingolibError::SyncTaskStopped(_))));
+    assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
+    init_offline_wallet();
+    assert!(with_initialized_lightclient(|_| Ok(())).is_ok());
 }
 
 #[test]
