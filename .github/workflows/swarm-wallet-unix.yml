@@ -21,6 +21,11 @@ on:
         description: 'Published signed wallet release tag to verify; must match this source version for network_profile'
         type: string
         default: ''
+      signed_mac_arch:
+        description: 'Published Mac package to verify on Intel hardware'
+        type: choice
+        default: 'x64'
+        options: [x64, universal]
   push:
     tags:
       - "swarm-unix-*"
@@ -278,6 +283,8 @@ jobs:
     if: ${{ inputs.verify_signed_intel }}
     runs-on: macos-15-intel
     timeout-minutes: 25
+    env:
+      SIGNED_MAC_ARCH: ${{ inputs.signed_mac_arch || 'x64' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -300,23 +307,29 @@ jobs:
           set -euo pipefail
           version=$(node -p 'const f = require("./src/buildProfile.json"); f.profiles[f.profile].version')
           test -n "$version"
-          test "$SIGNED_INTEL_TAG" = "swarm-wallet-$version"
+          case "$SIGNED_MAC_ARCH" in
+            x64) test "$SIGNED_INTEL_TAG" = "swarm-wallet-$version" ;;
+            universal) test "$SIGNED_INTEL_TAG" = "swarm-wallet-$version-macos" ;;
+            *) exit 1 ;;
+          esac
           mkdir -p signed-intel
           gh release download "$SIGNED_INTEL_TAG" \
             --repo Swarm-Official/swarm-releases \
-            --pattern "SWARM-Wallet-$version-mac-x64.dmg" \
-            --pattern "SWARM-Wallet-$version-mac-x64.zip" \
-            --pattern 'SHA256SUMS-mac-x64' \
-            --pattern 'release-manifest-mac-x64.json' --dir signed-intel
+            --pattern "SWARM-Wallet-$version-mac-$SIGNED_MAC_ARCH.dmg" \
+            --pattern "SWARM-Wallet-$version-mac-$SIGNED_MAC_ARCH.zip" \
+            --pattern "SHA256SUMS-mac-$SIGNED_MAC_ARCH" \
+            --pattern "release-manifest-mac-$SIGNED_MAC_ARCH.json" --dir signed-intel
           cd signed-intel
-          shasum -a 256 -c SHA256SUMS-mac-x64
+          shasum -a 256 -c "SHA256SUMS-mac-$SIGNED_MAC_ARCH"
           node -e '
             const file = require("../src/buildProfile.json");
             const identity = file.profiles[file.profile];
-            const manifest = require("./release-manifest-mac-x64.json");
-            const wrong = [["version", manifest.version, identity.version], ["app_id", manifest.app_id, identity.appId], ["platform", manifest.platform, "darwin-x64"]]
+            const arch = process.env.SIGNED_MAC_ARCH;
+            const manifest = require("./release-manifest-mac-" + arch + ".json");
+            const wrong = [["version", manifest.version, identity.version], ["app_id", manifest.app_id, identity.appId], ["platform", manifest.platform, "darwin-" + arch]]
               .filter(([, actual, wanted]) => actual !== wanted);
-            if (wrong.length) throw new Error("release-manifest-mac-x64.json: " + wrong.map(([key, actual, wanted]) => key + " is " + actual + ", not " + wanted).join("; "));
+            if (wrong.length) throw new Error("release manifest: " + wrong.map(([key, actual, wanted]) => key + " is " + actual + ", expected " + wanted).join("; "));
+            if (arch === "universal" && (!manifest.signed || !manifest.notarized || manifest.network !== file.profile || !["arm64", "x86_64"].every(a => manifest.architectures.includes(a)))) throw new Error("Universal release metadata is incomplete");
             console.log("manifest: " + manifest.product + " " + manifest.version + " " + manifest.platform + ", source " + manifest.source_commit + ", notary " + manifest.notary_submission_id);
           '
       - name: Verify Gatekeeper and launch the exact signed DMG app
@@ -326,7 +339,7 @@ jobs:
           version=$(identity version)
           app_name=$(identity executableName)
           app_id=$(identity appId)
-          dmg="signed-intel/SWARM-Wallet-$version-mac-x64.dmg"
+          dmg="signed-intel/SWARM-Wallet-$version-mac-$SIGNED_MAC_ARCH.dmg"
           hdiutil verify "$dmg"
           xcrun stapler validate "$dmg"
           hdiutil attach -readonly -nobrowse -mountpoint /Volumes/SWARM-Wallet-Intel-Verify "$dmg"
@@ -334,6 +347,9 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = "$app_id"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
           node scripts/check-swarm-macho-arch.js mac-x64 /Volumes/SWARM-Wallet-Intel-Verify
+          if [ "$SIGNED_MAC_ARCH" = universal ]; then
+            node scripts/check-swarm-macho-arch.js mac-arm64 /Volumes/SWARM-Wallet-Intel-Verify
+          fi
           codesign --verify --deep --strict "$app"
           spctl --assess --type execute --verbose=4 "$app"
           xcrun stapler validate "$app"
@@ -341,8 +357,9 @@ jobs:
           SWARM_DIST=/Volumes/SWARM-Wallet-Intel-Verify \
             SWARM_SMOKE_DIAGNOSTICS="$RUNNER_TEMP/swarm-wallet-intel-smoke" \
             node scripts/swarm-smoke.js mac
-          ditto -x -k "signed-intel/SWARM-Wallet-$version-mac-x64.zip" signed-intel/zip-app
+          ditto -x -k "signed-intel/SWARM-Wallet-$version-mac-$SIGNED_MAC_ARCH.zip" signed-intel/zip-app
           codesign --verify --deep --strict "signed-intel/zip-app/$app_name.app"
+          xcrun stapler validate "signed-intel/zip-app/$app_name.app"
       - name: Detach the test image
         if: always()
         run: hdiutil detach /Volumes/SWARM-Wallet-Intel-Verify || true
