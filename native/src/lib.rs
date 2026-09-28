@@ -1411,7 +1411,7 @@ fn with_sync_task_guard<T>(
     // while the outer client guard is still held; it is not a failed client
     // mutation and must not disable unrelated balance/history reads.
     with_panic_guard(work).map_err(|error| match error {
-        ZingolibError::Panic(reason) if reason.contains("task panicked") => {
+        ZingolibError::Panic(reason) if reason.contains("task panicked: JoinError::") => {
             ZingolibError::Sync(format!("Sync task stopped unexpectedly: {reason}"))
         }
         other => other,
@@ -2134,7 +2134,7 @@ fn drain_orchard_to_ironwood(mut cx: FunctionContext) -> JsResult<JsPromise> {
             // wallet lock, so `drain_status()` can poll it concurrently.
             *DRAIN_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)? =
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The drain progress lock failed.".to_string()))? =
                 Some(lightclient.immediate_migration_progress_handle());
             Ok(RT.block_on(async move {
                 match lightclient.quick_immediate_migration(zip32::AccountId::ZERO, true).await {
@@ -2165,7 +2165,7 @@ fn drain_status(mut cx: FunctionContext) -> JsResult<JsPromise> {
         with_panic_guard(|| {
             let handle = DRAIN_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)?
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The drain progress lock failed.".to_string()))?
                 .clone();
             match handle.and_then(|h| h.status()) {
                 Some(s) => Ok(object! {
@@ -2645,7 +2645,7 @@ fn execute_due_parts(mut cx: FunctionContext) -> JsResult<JsPromise> {
         with_initialized_lightclient(|lightclient| {
             *BATCH_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)? =
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The batch progress lock failed.".to_string()))? =
                 Some(lightclient.batch_progress_handle());
             let out = RT.block_on(async move {
                 let report = lightclient
@@ -2670,7 +2670,7 @@ fn execute_due_parts_status(mut cx: FunctionContext) -> JsResult<JsPromise> {
             use zingolib::lightclient::migrate::BatchPhase;
             let handle = BATCH_PROGRESS
                 .lock()
-                .map_err(|_| ZingolibError::LightclientLockPoisoned)?
+                .map_err(|_| ZingolibError::LightclientLockPoisoned("The batch progress lock failed.".to_string()))?
                 .clone();
             match handle.and_then(|h| h.status()) {
                 Some(s) => Ok(object! {

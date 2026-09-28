@@ -131,7 +131,15 @@ fn sync_task_panic_does_not_poison_history_reads() {
     let _serial = serialized();
     init_offline_wallet();
     let error = with_initialized_lightclient(|_| {
-        sync_poll_result(|| panic!("task panicked: fixture sync failure"))
+        sync_poll_result(|| {
+            // Mirror the pinned SDK's completed-task boundary using a real
+            // Tokio JoinError, including its production panic payload shape.
+            let joined: Result<(), tokio::task::JoinError> = RT.block_on(async {
+                tokio::spawn(async { panic!("fixture sync failure") }).await
+            });
+            joined.expect("task panicked");
+            unreachable!("the fixture task must fail");
+        })
     }).expect_err("a failed task must remain an error");
     assert!(error.to_string().contains("fixture sync failure"));
     assert!(!LIGHTCLIENT.is_poisoned());
@@ -144,7 +152,7 @@ fn unexpected_poll_panic_still_refuses_wallet_access() {
     let _serial = serialized();
     init_offline_wallet();
     let error = with_initialized_lightclient(|_| {
-        sync_poll_result(|| panic!("fixture unexpected client corruption"))
+        sync_poll_result(|| panic!("fixture unexpected client corruption: task panicked"))
     }).expect_err("an unknown panic is not a completed-task error");
     assert!(error.to_string().contains("fixture unexpected client corruption"));
     assert!(LIGHTCLIENT.is_poisoned());
