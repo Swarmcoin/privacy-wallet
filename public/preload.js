@@ -82,6 +82,7 @@ const _ALL_NATIVE_METHODS = [
   "init_from_seed",
   "init_from_ufvk",
   "init_from_b64",
+  "move_wallet_to_restarted_chain",
   // The 2-of-3 treasury custody surface (native/src/treasury.rs). These were
   // missing until 2026-09-27, which made every one of them `undefined` in
   // the renderer and the Treasury page unusable in a packaged build: the

@@ -1,6 +1,6 @@
 import { ServerClass } from "../components/appstate";
 import { SWARM_SERVER_PRESETS, SwarmServerPreset } from "./swarmNetwork";
-import { SWARM_NETWORK_PROFILES, SWARM_TESTNET_PROFILE } from "./networkProfiles";
+import { SWARM_MAINNET_PROFILE, SWARM_NETWORK_PROFILES, SWARM_TESTNET_PROFILE } from "./networkProfiles";
 
 /**
  * Every server this application will offer, ever.
@@ -37,6 +37,16 @@ const RETIRED: ServerClass[] = [
   {
     uri: "https://lwd.swarm.green:19767",
     chain_name: SWARM_TESTNET_PROFILE.chainLabel,
+    default: false,
+    latency: null,
+    obsolete: true,
+  },
+  // SWARM Mainnet's indexer port before the network restart of 2 October
+  // 2026. It served the abandoned chain; the restarted chain's indexer is on
+  // 443. A stored choice of it is rewritten on boot (src/utils/chainRestart.ts).
+  {
+    uri: "https://lwd-main.swarm.green:8443",
+    chain_name: SWARM_MAINNET_PROFILE.chainLabel,
     default: false,
     latency: null,
     obsolete: true,

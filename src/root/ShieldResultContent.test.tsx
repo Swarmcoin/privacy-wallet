@@ -46,6 +46,6 @@ describe("ShieldResultContent", () => {
   it("opens the SWARM explorer when View TXID is clicked with a legacy setting", () => {
     render(<ShieldResultContent {...baseProps} txids={["abc123"]} />);
     fireEvent.click(screen.getByText(/View TXID/));
-    expect(shell.openExternal).toHaveBeenCalledWith("https://mainnet.explore.swarm.green/transactions/abc123");
+    expect(shell.openExternal).toHaveBeenCalledWith("https://explore.swarm.green/transactions/abc123");
   });
 });

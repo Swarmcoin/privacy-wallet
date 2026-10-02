@@ -17,10 +17,10 @@ restated; where the two disagree, the file is right.
 | `legacyUnifiedHrps` | `utest` → `utest1…` | none |
 | `texHrp` | `textest` | `texswm` |
 | `transparentPrefixes` | `tm…` (0x1d25), `t2…` (0x1cba) | `s1…` (0x1c28), `s3…` (0x1c2d) |
-| `defaultServer` | `https://lwd.swarm.green:443` | `lwd-main.swarm.green:8443` |
-| `serverIsLive` | `true` | `true` — deployed at the launch ceremony, 2026-09-26 |
+| `defaultServer` | `https://lwd.swarm.green:443` | `lwd-main.swarm.green:443` (8443 until the restart of 2026-10-02) |
+| `serverIsLive` | `true` | `true` — deployed at the launch ceremony, 2026-09-26; restarted 2026-10-02 |
 | `grpcPort` | 9067 | 9068 (behind TLS) |
-| `genesis` | `045993f5…8e2a28` | `01c34428…2c39afdd` — the launch ceremony's |
+| `genesis` | `045993f5…8e2a28` | `01b76d8a…7c250a0eff2` — the restarted chain's (abandoned: `01c34428…2c39afdd`) |
 | `sdkChainType` | `ChainType::CustomTestnet` | `ChainType::SwarmMainnet(SwarmMainnetGenesis)` |
 | `activationHeight` | 1 | 1 |
 | `distinctivePrefixes` | `swarm1` | `swm1`, `s1`, `s3` |
@@ -48,9 +48,12 @@ act on, `selectableChainOrFallback` rewrites the stored label back to a network
 this build can serve, and `RPC.checkServer` refuses to sync or send whatever the
 server says.
 
-SWARM production held `null` until the launch ceremony of **2026-09-26**. It now
-carries genesis `01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd`
-and is selectable; the testnet is still selectable beside it, and both are
+SWARM production held `null` until the launch ceremony of **2026-09-26**, then
+carried genesis `01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd`
+until the network was restarted on **2026-10-02**. From 0.1.0-mainnet.10 it
+carries the restarted chain's genesis
+`01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2` (block 0 at
+2026-10-02T15:41:37Z) and is selectable; the testnet is still selectable beside it, and both are
 offered. The unlaunched behaviour is still asserted, against
 `withoutGenesis(SWARM_MAINNET_PROFILE)`, so it did not have to be deleted to
 make the launch commit.
@@ -72,7 +75,7 @@ a separate fact, and it lives in `src/buildProfile.json`:
 | app id | `green.swarm.wallet.testnet` | `green.swarm.wallet` |
 | package name | `swarm-wallet-testnet` | `swarm-wallet-mainnet` |
 | Windows installer | `SWARM-Wallet-0.1.0-testnet.9-win-x64-setup.exe` | `SWARM-Wallet-0.1.0-mainnet.2-win-x64-setup.exe` |
-| starts on | `https://lwd.swarm.green:443` | `https://lwd-main.swarm.green:8443` |
+| starts on | `https://lwd.swarm.green:443` | `https://lwd-main.swarm.green:443` |
 
 `scripts/set-build-profile.js` is the only thing that writes the selection, from
 `SWARM_NETWORK_PROFILE` — the `network_profile` input both build workflows take,
@@ -108,7 +111,7 @@ all. See "The chain hint" below.
 The addon's first argument is a chain **hint**, not a chain label, and for
 SWARM production the two differ: `ChainType::SwarmMainnet` carries the genesis
 and the SDK gives it no default, so the hint is
-`swarm-mainnet:01c34428…2c39afdd`. For `main`, `test`, `regtest` and
+`swarm-mainnet:01b76d8a…7c250a0eff2`. For `main`, `test`, `regtest` and
 `swarm-testnet` the hint and the label are the same string.
 
 `nativeChainHint` in `src/utils/networkProfiles.ts` is the one place a label
@@ -135,7 +138,7 @@ Three presets, and no others anywhere in the build:
 
 | Preset | URI | Network |
 | --- | --- | --- |
-| SWARM Mainnet | `https://lwd-main.swarm.green:8443` | `swarm-mainnet` |
+| SWARM Mainnet | `https://lwd-main.swarm.green:443` | `swarm-mainnet` |
 | SWARM Testnet (coins have no value) | `https://lwd.swarm.green:443` | `swarm-testnet` |
 | My own testnet node | `http://127.0.0.1:9067` | `swarm-testnet` |
 
@@ -198,8 +201,8 @@ It refuses rather than guesses: a manifest that is not SWARM production
 (`identity.network_name` `SwarmMainnet`, `identity.network_kind`
 `SwarmProduction`, chain label `swarm-mainnet`), a genesis that is not 64
 lower-case hex characters, a genesis belonging to upstream Zcash or to the SWARM
-testnet, a `light_wallet_servers[0]` that is not the reserved
-`lwd-main.swarm.green:8443`, or a source file whose two lines are not where it
+testnet or to the abandoned SWARM Mainnet chain, a `light_wallet_servers[0]`
+that is not the reserved `lwd-main.swarm.green:443`, or a source file whose two lines are not where it
 expects them — each is an error, and nothing is written.
 
 **No test changes go in that commit.** The unlaunched behaviour is asserted
@@ -274,3 +277,44 @@ wrong server.
 The answer is cached per wallet-and-server pair while it is yes, so the sync
 cycle does not pay a round trip per pass; a refusal is re-asked every time, and
 switching wallet or server clears it.
+
+## The network restart of 2 October 2026
+
+SWARM Mainnet was restarted from a new genesis on 2026-10-02. Its name, chain
+label, magic, address prefixes, transaction domain and consensus parameters did
+not change; its genesis did, and its indexer moved from port 8443 to 443.
+0.1.0-mainnet.10 is the first build for the restarted chain.
+
+A wallet FILE does not record the genesis it was synced against, only the
+network (`SWARM_MAINNET_TAG` in the SDK's `wallet/disk.rs`), so an old file
+still opens. The wallet RECORD does from this release on: every SWARM Mainnet
+record carries `genesis`. A SWARM Mainnet record without it (everything written
+by mainnet.1 to mainnet.9), or with another one, is moved once, before it is
+opened (`src/utils/chainRestart.ts`, `native/src/chain_restart.rs`):
+
+1. the file's keys (recovery phrase, or viewing key for a watch-only wallet)
+   and its list of handed-out addresses are read;
+2. the file is copied byte for byte to
+   `<file>.before-network-restart-<unix seconds>.bak` beside it, and the copy is
+   read back and compared;
+3. a fresh wallet is built from the same keys with its birthday at the new
+   chain's first block, the same unified and transparent receive addresses are
+   handed out again in the same order, and every one is compared with the old
+   list;
+4. the wallet file is replaced (temporary file, flush, rename) and read back.
+
+Nothing is written before every check in step 3 passes; a failure leaves the
+file as it was and the wallet is not opened. The record is then given the new
+genesis and the 443 indexer, and the owner is told, once: "The SWARM network
+was restarted on 2 October 2026. Your addresses and recovery phrase are
+unchanged; balances start again from the new chain."
+
+An in-place clean was not used: the SDK's `clear_all` keeps the birthday (which
+may be above the new chain's tip), re-adds the old chain's transaction heights
+as scan targets, and keeps any Ironwood migration section. A wallet file
+brought in through "Restore from an existing DAT file" is moved the first time
+it is opened, because it may come from the abandoned chain.
+
+New SWARM Mainnet wallets are born at the chain's height less upstream's
+100-block margin (never below block 1), not at block 1:
+`chain_restart::new_wallet_birthday`.

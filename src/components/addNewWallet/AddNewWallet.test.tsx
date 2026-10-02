@@ -180,7 +180,7 @@ describe("AddNewWallet never offers Automatic", () => {
 describe("AddNewWallet on the project chain", () => {
   const SWARM = ServerChainNameEnum.swarmTestnetChainName;
   const OWN_NODE = "http://127.0.0.1:9067";
-  const MAINNET_SERVER = "https://lwd-main.swarm.green:8443";
+  const MAINNET_SERVER = "https://lwd-main.swarm.green:443";
   // This chain's own default, not the build's: the same source file is
   // packaged twice and `SWARM_SERVER` is the mainnet indexer in the
   // mainnet package.
@@ -368,6 +368,18 @@ describe("AddNewWallet on the project chain", () => {
     expect((native.wallet_exists as jest.Mock).mock.calls[0][1]).toBe(
       `swarm-mainnet:${SWARM_MAINNET_PROFILE.genesis}`,
     );
+    // The record names the restarted chain, so the wallet is never mistaken
+    // for one made before the restart of 2 October 2026 and moved again.
+    await waitFor(() =>
+      expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+        "wallets:add",
+        expect.objectContaining({
+          chain_name: "swarm-mainnet",
+          uri: MAINNET_SERVER,
+          genesis: "01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2",
+        }),
+      ),
+    );
   });
 
   it("builds a testnet wallet on the testnet chain", async () => {
@@ -383,6 +395,11 @@ describe("AddNewWallet on the project chain", () => {
 
     await waitFor(() => expect(native.init_new).toHaveBeenCalled());
     expect((native.init_new as jest.Mock).mock.calls[0][1]).toBe("swarm-testnet");
+    await waitFor(() =>
+      expect(ipcRenderer.invoke).toHaveBeenCalledWith("wallets:add", expect.objectContaining({ chain_name: "swarm-testnet" })),
+    );
+    const added = (ipcRenderer.invoke as jest.Mock).mock.calls.find(([channel]) => channel === "wallets:add")[1];
+    expect(added.genesis).toBeUndefined();
   });
 
   // "Another server" takes anything, so the chain the server reports is checked

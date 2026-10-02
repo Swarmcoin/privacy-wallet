@@ -72,10 +72,16 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
+      # The Swarm-Official organisation is suspended. Its SDK, protocol and
+      # zebra forks are mirrored at the same revisions under louisinthesubway;
+      # git rewrites the URLs so native/Cargo.lock stays byte-identical to the
+      # mainnet.9 builds (CARGO_NET_GIT_FETCH_WITH_CLI is set).
+      - name: Fetch the SWARM forks from their mirrors
+        run: git config --global url."https://github.com/louisinthesubway/".insteadOf "https://github.com/Swarm-Official/"
       - name: Check out the pinned SDK revision
         uses: actions/checkout@v4
         with:
-          repository: Swarm-Official/privacy-zingolib
+          repository: louisinthesubway/privacy-zingolib
           ref: c7464d2ec40a5d619500a9ebee76ac4c39775baa
           path: sdk-source
       - uses: actions/setup-node@v4
@@ -145,7 +151,7 @@ jobs:
       - name: Keep wallet sessions and mining receipts isolated
         run: node scripts/test.js --watchAll=false --runInBand src/rpc/walletSession.test.ts src/rpc/fetchValueTransferData.test.ts src/components/swarm/swarmModel.test.ts
       - name: Verify network, endpoint and server-selection boundaries
-        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/components/walletBar/SelectWallet.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx src/debPackage.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/utils/chainRestart.test.ts src/components/loadingScreen src/utils/networkProfiles.test.ts src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/components/walletBar/SelectWallet.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx src/debPackage.test.ts
       # The same treasury gate the Windows build runs. The last two read
       # public/ as text: the main process and the preload are never bundled
       # and never linted, so a handler reading a name it cannot see or a
@@ -160,7 +166,7 @@ jobs:
       # with no --target, so the adapter build's dependencies are reused.
       - name: Prove the addon reads SWARM addresses and chain hints
         if: matrix.platform == 'linux'
-        run: cargo test --release --locked --manifest-path native/Cargo.toml --lib -p zingolib-native -- swarm_address_parsing chain_hint_tests
+        run: cargo test --release --locked --manifest-path native/Cargo.toml --lib -p zingolib-native -- swarm_address_parsing chain_hint_tests chain_restart_tests
       - name: Prove wallet panic containment and history preservation
         run: |
           cargo test --release --locked --manifest-path native/Cargo.toml --lib -p zingolib-native -- lock_discipline_tests --test-threads=1
@@ -191,7 +197,24 @@ jobs:
       - name: Check the renderer shows no upstream naming
         run: node scripts/check-swarm-bundle-strings.js --renderer build/static/js
       - name: Package the unsigned test wallet
-        run: yarn electron-builder ${{ matrix.electron_flags }} --config configs/swarm-builder.cjs --publish never
+        run: yarn electron-builder ${{ matrix.electron_flags }} --config ${{ startsWith(matrix.platform, 'mac') && 'configs/swarm-builder-adhoc.cjs' || 'configs/swarm-builder.cjs' }} --publish never
+      # A Mac bundle whose signature does not match its contents is reported
+      # as "damaged" when downloaded. Check the ad hoc signature of the app
+      # electron-builder left in dist/ and of the app inside the DMG.
+      - name: Check the Mac app's ad hoc signature covers the whole bundle
+        if: startsWith(matrix.platform, 'mac')
+        run: |
+          set -euo pipefail
+          app=$(find dist -maxdepth 2 -name '*.app' -type d | head -1)
+          test -n "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | grep -E 'Signature=adhoc|Identifier|Format'
+          dmg=$(ls dist/*.dmg | head -1)
+          hdiutil attach -readonly -nobrowse -mountpoint /Volumes/swarm-sig-check "$dmg"
+          trap 'hdiutil detach /Volumes/swarm-sig-check || true' EXIT
+          codesign --verify --deep --strict --verbose=2 /Volumes/swarm-sig-check/*.app
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Volumes/swarm-sig-check/*.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' /Volumes/swarm-sig-check/*.app/Contents/Info.plist
       - name: Check every declared package target was produced
         run: node scripts/check-swarm-dist-targets.js ${{ matrix.platform == 'linux' && 'linux' || 'mac' }}
       # Up to 0.1.0-mainnet.7 the mainnet .deb shipped an AppArmor profile for

@@ -60,6 +60,20 @@ export function init_from_b64(
   min_confirmations: number,
   wallet_name: string,
 ): string;
+/**
+ * Moves a SWARM Mainnet wallet file written on the abandoned chain (genesis
+ * 01c34428…) onto the restarted one: same keys and addresses, birthday at the
+ * new chain's first block, none of the old chain's state, and a byte-identical
+ * backup of the old file beside it. Offline. Answers JSON: backup_path,
+ * previous_birthday, birthday, key_kind, unified_addresses,
+ * transparent_addresses, transparent_other_scopes.
+ */
+export function move_wallet_to_restarted_chain(
+  chain_hint: SwarmChainHint,
+  performance_level: PerformanceLevelEnum,
+  min_confirmations: number,
+  wallet_name: string,
+): string;
 export function save_wallet_file(): Promise<string>;
 export function check_save_error(): Promise<string>;
 export function get_developer_donation_address(): string;

@@ -54,12 +54,16 @@ const FOREIGN_GENESIS = {
   "00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08": "the upstream Zcash main chain",
   "05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38": "the upstream Zcash test chain",
   "045993f5c91ea160c7ebda573dd97b0016816bca68d395bfff202779b88e2a28": "the SWARM testnet",
+  "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd":
+    "the SWARM Mainnet chain abandoned at the restart of 2 October 2026",
 };
 
 // The production indexer's name is reserved, and it is the only host this
 // script will write. A manifest naming something else is a manifest for a
 // different deployment, and that is a decision for a person, not a script.
-const EXPECTED_SERVER = "lwd-main.swarm.green:8443";
+// Port 443 since the network restart of 2 October 2026 (8443 served the
+// abandoned chain).
+const EXPECTED_SERVER = "lwd-main.swarm.green:443";
 
 let manifest;
 try {
@@ -104,7 +108,9 @@ let source = fs.readFileSync(PROFILES, "utf8");
 const edits = [
   {
     what: "SWARM_MAINNET_GENESIS",
-    find: /export const SWARM_MAINNET_GENESIS: string \| null = null;/,
+    // `null` before the first launch; a 64-hex value when a restart replaces
+    // the genesis, as the one of 2 October 2026 did.
+    find: /export const SWARM_MAINNET_GENESIS: string \| null = (?:null|"[0-9a-f]{64}");/,
     to: `export const SWARM_MAINNET_GENESIS: string | null = "${genesis}";`,
   },
   {
@@ -118,7 +124,7 @@ const edits = [
     // anchoring it to the line after `defaultServer: SWARM_MAINNET_SERVER`
     // means this can never reach the wrong profile.
     what: "MAINNET.serverIsLive",
-    find: /(defaultServer: SWARM_MAINNET_SERVER,\n {2})serverIsLive: false,/,
+    find: /(defaultServer: SWARM_MAINNET_SERVER,\n {2})serverIsLive: (?:false|true),/,
     to: "$1serverIsLive: true,",
   },
 ];

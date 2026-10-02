@@ -17,7 +17,7 @@ describe("a server serving the chain the wallet is on", () => {
   });
 
   it("is accepted on production too, once production has launched", () => {
-    const info = lightdInfo({ chain_name: "swarm-mainnet", server_uri: "https://lwd-main.swarm.green:8443/" });
+    const info = lightdInfo({ chain_name: "swarm-mainnet", server_uri: "https://lwd-main.swarm.green:443/" });
     expect(checkServerIdentity(LAUNCHED, info)).toEqual({ ok: true });
   });
 

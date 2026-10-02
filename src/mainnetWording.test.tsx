@@ -116,7 +116,7 @@ const FORBIDDEN: readonly RegExp[] = [
   /textest/i,
 ];
 
-const MAINNET_SERVER = "https://lwd-main.swarm.green:8443";
+const MAINNET_SERVER = "https://lwd-main.swarm.green:443";
 
 const wallet = {
   id: 4,

@@ -36,7 +36,7 @@ jest.mock("../../../treasury/treasuryService", () => ({
 
 const mocked = treasury as jest.Mocked<typeof treasury>;
 
-const SERVER = "https://lwd-main.swarm.green:8443";
+const SERVER = "https://lwd-main.swarm.green:443";
 
 const wallet = {
   id: 7,

@@ -24,7 +24,7 @@ function client() {
   rpc.currentWallet = {
     id: 1,
     chain_name: "swarm-mainnet",
-    uri: "https://lwd-main.swarm.green:8443",
+    uri: "https://lwd-main.swarm.green:443",
   } as unknown as RPC["currentWallet"];
   return rpc;
 }

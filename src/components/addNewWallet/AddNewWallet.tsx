@@ -41,6 +41,7 @@ import { useLocation } from "react-router-dom";
 import ScrollPaneTop from "../scrollPane/ScrollPane";
 import { usePaneOffset } from "../scrollPane/usePaneOffset";
 import RPC from "../../rpc/rpc";
+import { genesisForNewRecord } from "../../utils/chainRestart";
 import { useSwapService } from "../../context/ContextSwapService";
 import { SwapStore, readCurrentWalletFingerprint } from "../../swap";
 import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
@@ -423,6 +424,11 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
       selection: selectedSelection ? selectedSelection : ServerSelectionEnum.auto,
       performanceLevel: performanceLevel,
     };
+    // Which chain the new wallet's state belongs to. A wallet made from keys
+    // against the live server is this build's; a FILE brought in may hold the
+    // abandoned chain's state and is moved when it is first opened.
+    const genesis = genesisForNewRecord(currentWallet.chain_name, newWalletType === "file");
+    if (genesis) currentWallet.genesis = genesis;
     await ipcRenderer.invoke("wallets:add", currentWallet);
     // re-fetching wallets
     const newWallets = await ipcRenderer.invoke("wallets:all");
@@ -690,6 +696,8 @@ const AddNewWallet: React.FC<AddNewWalletProps> = ({
         selection: selectedSelection ? selectedSelection : ServerSelectionEnum.auto,
         performanceLevel: performanceLevel,
       };
+      // Settings never change which chain a wallet's state belongs to.
+      if (currentWallet.genesis) currentWalletSave.genesis = currentWallet.genesis;
       await ipcRenderer.invoke("wallets:update", currentWalletSave);
       // re-fetching wallets
       const newWallets = await ipcRenderer.invoke("wallets:all");

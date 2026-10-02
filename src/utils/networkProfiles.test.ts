@@ -1,5 +1,6 @@
 import { ServerChainNameEnum } from "../components/appstate";
 import {
+  SWARM_MAINNET_ABANDONED_GENESIS,
   SWARM_MAINNET_GENESIS,
   SWARM_MAINNET_PROFILE,
   SWARM_NETWORK_PROFILES,
@@ -70,7 +71,7 @@ describe("the SWARM mainnet profile", () => {
   // whether it is LIVE depends on whether this build has launched, which is
   // asserted once, below, in "what this build ships for SWARM production".
   it("names the reserved production indexer", () => {
-    expect(SWARM_MAINNET_PROFILE.defaultServer).toBe("lwd-main.swarm.green:8443");
+    expect(SWARM_MAINNET_PROFILE.defaultServer).toBe("lwd-main.swarm.green:443");
   });
 
   it("accepts no legacy address encodings, having no history", () => {
@@ -117,6 +118,22 @@ const onceLaunched = BUILD_HAS_LAUNCHED ? it : it.skip;
 describe("what this build ships for SWARM production", () => {
   it("agrees with itself about whether it has a genesis at all", () => {
     expect(SWARM_MAINNET_PROFILE.genesis).toBe(SWARM_MAINNET_GENESIS);
+  });
+
+  // The network was restarted on 2 October 2026. This build is pinned to the
+  // restarted chain (block 0 at 2026-10-02T15:41:37Z, as GetLightdInfo on
+  // lwd-main.swarm.green:443 reports it in field 19), never to the abandoned
+  // one, and dials the restarted chain's indexer port.
+  it("is pinned to the restarted chain and its indexer", () => {
+    expect(SWARM_MAINNET_GENESIS).toBe("01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2");
+    expect(SWARM_MAINNET_GENESIS).not.toBe(SWARM_MAINNET_ABANDONED_GENESIS);
+    expect(SWARM_MAINNET_ABANDONED_GENESIS).toBe("01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd");
+    expect(SWARM_MAINNET_PROFILE.defaultServer).toBe("lwd-main.swarm.green:443");
+    expect(SWARM_MAINNET_PROFILE.serverIsLive).toBe(true);
+    expect(chainHintFor(SWARM_MAINNET_PROFILE)).toBe(
+      "swarm-mainnet:01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2",
+    );
+    expect(SWARM_MAINNET_PROFILE.explorer).toBe("https://explore.swarm.green");
   });
 
   whileUnlaunched("offers no mainnet, and rewrites a stored mainnet label", () => {

@@ -13,6 +13,7 @@ export const native = {
   wallet_exists: jest.fn(),
   wallet_kind: jest.fn(),
   init_from_b64: jest.fn(),
+  move_wallet_to_restarted_chain: jest.fn(),
   init_new: jest.fn(),
   // The chain a freshly built wallet's server says it serves. AddNewWallet
   // reads it before the wallet is registered; see

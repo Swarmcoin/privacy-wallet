@@ -38,13 +38,19 @@ jobs:
       CI: "true"
     steps:
       - uses: actions/checkout@v4
+      # The Swarm-Official organisation is suspended. Its SDK, protocol and
+      # zebra forks are mirrored at the same revisions under louisinthesubway;
+      # git rewrites the URLs so native/Cargo.lock stays byte-identical
+      # (CARGO_NET_GIT_FETCH_WITH_CLI is set).
+      - name: Fetch the SWARM forks from their mirrors
+        run: git config --global url."https://github.com/louisinthesubway/".insteadOf "https://github.com/Swarm-Official/"
       # Read-only, and only so the pin check can see which network the pinned
       # SDK targets and so its licence ships with the binary. Cargo fetches its
       # own copy of the same revision for the compile.
       - name: Check out the pinned SDK revision
         uses: actions/checkout@v4
         with:
-          repository: Swarm-Official/privacy-zingolib
+          repository: louisinthesubway/privacy-zingolib
           ref: c7464d2ec40a5d619500a9ebee76ac4c39775baa
           path: sdk-source
       - uses: actions/setup-node@v4
@@ -116,7 +122,7 @@ jobs:
       - name: Check the treasury custody surface
         run: node scripts/test.js --watchAll=false --runInBand src/treasury src/components/swarm/components/PassphrasePrompt.test.tsx src/components/swarm/screens/TreasuryScreen.test.tsx src/nativeSurface.test.ts src/mainProcessScope.test.ts
       - name: Verify network, endpoint and server-selection boundaries
-        run: node scripts/test.js --watchAll=false --runInBand src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx src/debPackage.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/utils/chainRestart.test.ts src/components/loadingScreen src/utils/networkProfiles.test.ts src/utils/fetchServerList.test.ts src/utils/utils.test.ts src/components/addNewWallet/AddNewWallet.test.tsx src/components/dashboard/Dashboard.test.tsx src/components/send/Send.test.tsx src/utils/addressKind.test.ts src/utils/swarmAddress.test.ts src/mainnetWording.test.tsx src/debPackage.test.ts
       - name: Build the pinned wallet SDK adapter
         run: yarn neon-win-x64
       # The addon's treasury tests: the published fixture scalars reproduce
@@ -133,7 +139,7 @@ jobs:
       # chain hints. Same target and profile as the adapter build above, so
       # only the addon itself is compiled again, as a test harness.
       - name: Prove the addon reads SWARM addresses and chain hints
-        run: cargo test --release --locked --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc --lib -p zingolib-native -- swarm_address_parsing chain_hint_tests
+        run: cargo test --release --locked --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc --lib -p zingolib-native -- swarm_address_parsing chain_hint_tests chain_restart_tests
       - name: Prove wallet panic containment and history preservation
         run: |
           cargo test --release --locked --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc --lib -p zingolib-native -- lock_discipline_tests --test-threads=1

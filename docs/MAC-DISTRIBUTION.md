@@ -221,7 +221,7 @@ the DMG. The first launch must offer only "downloaded from the Internet …
 Open". Then launch on a **disposable** wallet: the onboarding screen names the
 network (SWARM Mainnet), a new wallet shows `swm1…` and `s1…` addresses
 (testnet: `swarm1…`, and legacy `utest1…` is accepted), sync runs against
-`lwd-main.swarm.green:8443` (testnet: `lwd.swarm.green:443`), Send accepts an
+`lwd-main.swarm.green:443` (testnet: `lwd.swarm.green:443`), Send accepts an
 `s1…` address, an existing profile is preserved, and no process remains after
 quitting. Never fund the disposable wallet. Keep the unsigned `dist/` packages
 as development artifacts only. Coordinate publication with the release owner.

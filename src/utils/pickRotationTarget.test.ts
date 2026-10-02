@@ -78,12 +78,12 @@ test("stays on the wallet's chain", async () => {
 
   const target = await pickRotationTarget(ServerChainNameEnum.swarmMainnetChainName, []);
 
-  expect(target).toBe("https://lwd-main.swarm.green:8443");
+  expect(target).toBe("https://lwd-main.swarm.green:443");
   // The testnet's endpoints belong to the testnet, and a mainnet wallet may
   // not be rotated onto one: a light wallet cannot follow its server to
   // another chain, least of all from real money to test coins.
   const raced = race.mock.calls[0][0].map((s: ServerClass) => s.uri);
-  expect(raced).toEqual(["https://lwd-main.swarm.green:8443"]);
+  expect(raced).toEqual(["https://lwd-main.swarm.green:443"]);
 });
 
 // Upstream's chains have no SWARM endpoint, and nothing may invent one for

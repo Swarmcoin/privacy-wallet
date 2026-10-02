@@ -20,6 +20,13 @@ import selectFastestServer, { RACE_CANDIDATES } from "../../utils/selectFastestS
 import Utils from "../../utils/utils";
 import { userFacingError } from "../../utils/userFacingError";
 import { nativeChainHint } from "../../utils/networkProfiles";
+import {
+  CHAIN_RESTART_NOTICE,
+  CHAIN_RESTART_NOTICE_TITLE,
+  needsMoveToRestartedChain,
+  recordAfterMove,
+  replaceRetiredServer,
+} from "../../utils/chainRestart";
 import { Logo } from "../logo";
 import DetailLine from "../detailLine/DetailLine";
 
@@ -82,6 +89,14 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
   private navigationTimer: ReturnType<typeof setTimeout> | undefined;
 
   private watchdogTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /**
+   * This launch moved the wallet onto the restarted SWARM network (see
+   * src/utils/chainRestart.ts), so its owner is told why the balance starts
+   * again from nothing. A field rather than state: it is read in the same
+   * tick it is set, before React has applied any state update.
+   */
+  private movedToRestartedChain = false;
 
   // One `auto` pick per chain per launch. loadCurrentWallet runs the settings
   // check twice — once against settings.json, once against the wallet record —
@@ -169,6 +184,13 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
       return;
     }
 
+    // Said after everything else on this screen, so nothing below closes it.
+    if (this.movedToRestartedChain) {
+      closeErrorModal();
+      openErrorModal(CHAIN_RESTART_NOTICE_TITLE, <div>{CHAIN_RESTART_NOTICE}</div>);
+      return;
+    }
+
     // only if the active wallet exists
     if (this.state.walletExists) {
       // warning with the migration from Z1 to Z2
@@ -198,6 +220,9 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
     let uri: string = "",
       chain_name: ServerChainNameEnum = ServerChainNameEnum.mainChainName,
       selection: ServerSelectionEnum = ServerSelectionEnum.list;
+    // The abandoned chain's indexer port is no longer served; a setting or a
+    // wallet record that still names it is moved to the restarted chain's.
+    serveruri = replaceRetiredServer(serveruri);
     if (!serveruri) {
       // Nothing usable stored, so there is no choice to respect: land on `auto`
       // and let the block below pick. Keep whatever chain the settings do name
@@ -791,6 +816,30 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
       } else {
         this.setState({ walletExists: true });
         // the wallet file YES exists
+
+        // A SWARM Mainnet wallet made before the network restart of
+        // 2 October 2026 holds the abandoned chain's state. It is moved once,
+        // before it is opened: same keys and addresses, a fresh view from the
+        // new chain's first block, and the old file kept beside it as a
+        // backup. If the move fails the wallet is not opened at all — showing
+        // the abandoned chain's balances as if they were real is worse.
+        if (needsMoveToRestartedChain(currentWallet)) {
+          this.setStep("moving the wallet to the restarted SWARM network");
+          const moved: string = await native.move_wallet_to_restarted_chain(
+            nativeChainHint(currentWallet.chain_name),
+            currentWallet.performanceLevel,
+            3,
+            currentWallet.fileName,
+          );
+          console.log(`[chain-restart] ${moved}`);
+          currentWallet = recordAfterMove(currentWallet);
+          await ipcRenderer.invoke("wallets:update", currentWallet);
+          this.props.setCurrentWallet(currentWallet);
+          this.props.setWallets(await ipcRenderer.invoke("wallets:all"));
+          this.movedToRestartedChain = true;
+          this.setState({ currentWallet });
+        }
+
         // A failed init rejects (typed error on the throw channel); the catch
         // below surfaces it via setCurrentWalletOpenError. Success is JSON.
         this.setStep("opening wallet");

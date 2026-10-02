@@ -98,7 +98,7 @@ describe("the servers this application offers", () => {
   // endpoints used to be one dropdown away from the Create button.
   it("offers SWARM's endpoints and no upstream Zcash server", () => {
     expect(SWARM_SERVER_PRESETS.map((preset) => preset.uri)).toEqual([
-      "https://lwd-main.swarm.green:8443",
+      "https://lwd-main.swarm.green:443",
       "https://lwd.swarm.green:443",
       "http://127.0.0.1:9067",
     ]);
@@ -116,7 +116,7 @@ describe("the servers this application offers", () => {
     expect(mainnet.label).toBe("SWARM Mainnet");
     expect(mainnet.profileId).toBe(SwarmProfileIdEnum.mainnet);
     expect(mainnet.uri).toBe(SWARM_MAINNET_SERVER_URI);
-    expect(SWARM_MAINNET_SERVER_URI).toBe("https://lwd-main.swarm.green:8443");
+    expect(SWARM_MAINNET_SERVER_URI).toBe("https://lwd-main.swarm.green:443");
 
     // Launched: genesis present and the indexer deployed. Both are facts of
     // this build, and they are what make the preset selectable at all.
@@ -139,7 +139,7 @@ describe("the servers this application offers", () => {
   // offered the other's indexer as if it were interchangeable.
   it("keeps each network's endpoints to itself", () => {
     expect(swarmPresetsForChain(ServerChainNameEnum.swarmMainnetChainName).map((p) => p.uri)).toEqual([
-      "https://lwd-main.swarm.green:8443",
+      "https://lwd-main.swarm.green:443",
     ]);
     expect(swarmPresetsForChain(ServerChainNameEnum.swarmTestnetChainName).map((p) => p.uri)).toEqual([
       "https://lwd.swarm.green:443",
@@ -154,7 +154,7 @@ describe("the servers this application offers", () => {
   });
 
   it("recognises a preset and does not claim a typed address is one", () => {
-    expect(swarmPresetFor("https://lwd-main.swarm.green:8443")?.label).toBe("SWARM Mainnet");
+    expect(swarmPresetFor("https://lwd-main.swarm.green:443")?.label).toBe("SWARM Mainnet");
     expect(swarmPresetFor("https://somewhere.example:443")).toBeUndefined();
   });
 

@@ -90,7 +90,10 @@ const SWARM_BUILD_CHAIN = SELECTABLE_SWARM_CHAINS.includes(appPackage.swarmNetwo
   : SWARM_CHAIN_NAME;
 
 const SWARM_TESTNET_SERVER = "https://lwd.swarm.green:443";
-const SWARM_MAINNET_SERVER = "https://lwd-main.swarm.green:8443";
+// Port 443 since the network restart of 2 October 2026; 8443 served the
+// abandoned chain and is no longer served. Mirrors src/utils/networkProfiles.ts.
+const SWARM_MAINNET_SERVER = "https://lwd-main.swarm.green:443";
+const RETIRED_MAINNET_SERVER = /^(https:\/\/)?lwd-main\.swarm\.green:8443\/?$/i;
 const SWARM_DEFAULT_SERVER = SWARM_BUILD_CHAIN === SWARM_MAINNET_CHAIN_NAME ? SWARM_MAINNET_SERVER : SWARM_TESTNET_SERVER;
 
 /** Whether a stored chain label is one of SWARM's. */
@@ -132,6 +135,12 @@ if (isSwarmWalletBuild && !settings.getSync("all")) {
   if (allowed !== stored) {
     settings.setSync("all.serverchain_name", allowed);
     settings.setSync("all.serveruri", SWARM_DEFAULT_SERVER);
+  }
+  // The abandoned chain's indexer address, left in settings by an earlier
+  // mainnet build. Wallet records are moved by the renderer, with the wallet.
+  const storedUri = settings.getSync("all.serveruri");
+  if (typeof storedUri === "string" && RETIRED_MAINNET_SERVER.test(storedUri.trim())) {
+    settings.setSync("all.serveruri", SWARM_MAINNET_SERVER);
   }
 }
 
@@ -1939,6 +1948,15 @@ ipcMain.handle("native:init_from_ufvk", (_e, ufvk, birthday, server_uri, chain_h
 ipcMain.handle("native:init_from_b64", (_e, server_uri, chain_hint, perf, min_conf, wallet_name) => {
   assertWalletName(wallet_name);
   return requireNative("init_from_b64").init_from_b64(server_uri, chain_hint, perf, min_conf, wallet_name);
+});
+ipcMain.handle("native:move_wallet_to_restarted_chain", (_e, chain_hint, perf, min_conf, wallet_name) => {
+  assertWalletName(wallet_name);
+  return requireNative("move_wallet_to_restarted_chain").move_wallet_to_restarted_chain(
+    chain_hint,
+    perf,
+    min_conf,
+    wallet_name,
+  );
 });
 ipcMain.handle("native:get_latest_block_server", (_e, server_uri) =>
   requireNative("get_latest_block_server").get_latest_block_server(server_uri),

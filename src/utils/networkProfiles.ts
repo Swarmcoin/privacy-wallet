@@ -45,7 +45,19 @@ export enum SwarmProfileIdEnum {
  * A release fills this in, from the network manifest, in the same commit that
  * fills in `SWARM_MAINNET_SERVER` below.
  */
-export const SWARM_MAINNET_GENESIS: string | null = "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd";
+export const SWARM_MAINNET_GENESIS: string | null = "01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2";
+
+/**
+ * The genesis SWARM Mainnet launched from on 2026-09-26 and abandoned when the
+ * network was restarted on 2 October 2026.
+ *
+ * Kept, never served: a wallet record that names it, or that names no genesis
+ * at all (every record written before 0.1.0-mainnet.10), holds that chain's
+ * balances and history, and is moved onto the restarted chain once
+ * (`src/utils/chainRestart.ts`). A server reporting it is refused like any
+ * other foreign genesis.
+ */
+export const SWARM_MAINNET_ABANDONED_GENESIS = "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd";
 
 /**
  * Where a SWARM production wallet would look for its indexer.
@@ -55,7 +67,7 @@ export const SWARM_MAINNET_GENESIS: string | null = "01c34428b9e67cdd8345e0b365a
  * visible, not so anything dials it — nothing does while the profile is
  * unselectable.
  */
-export const SWARM_MAINNET_SERVER = "lwd-main.swarm.green:8443";
+export const SWARM_MAINNET_SERVER = "lwd-main.swarm.green:443";
 
 /** Everything one SWARM network is, in the terms the app needs. */
 export type SwarmNetworkProfile = {
@@ -166,8 +178,10 @@ const MAINNET: SwarmNetworkProfile = {
   genesis: SWARM_MAINNET_GENESIS,
   sdkChainType: "SwarmMainnet",
   activationHeight: 1,
-  // Not explore.swarm.green: that is the testnet's.
-  explorer: "https://mainnet.explore.swarm.green",
+  // Since 2026-09-28 explore.swarm.green is SWARM Mainnet's explorer
+  // (mainnet.explore.swarm.green is an alias of it); the testnet's is
+  // testnet.explore.swarm.green.
+  explorer: "https://explore.swarm.green",
   // Every one of SWARM production's encodings is its own: a new HRP and two
   // transparent version bytes checked against Zcash, Bitcoin, Litecoin, Dash,
   // Komodo and Horizen before they were chosen.
