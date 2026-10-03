@@ -14,10 +14,18 @@
  * Windows Hello dialog. `test/router.test.js` does exactly that.
  */
 
-const { networkFor, chainHintFor, looksLikeAddressOf, DEFAULT_NETWORK_ID } = require("./networks");
+const { networkFor, chainHintFor, explorerTxUrl, looksLikeAddressOf, DEFAULT_NETWORK_ID } = require("./networks");
 const { WALLET_FILE_NAME } = require("./paths");
+const { createRecordStore } = require("./records");
 
-const HOST_VERSION = "0.1.0";
+const HOST_VERSION = "0.2.0";
+
+/**
+ * The one sentence a moved wallet's owner is shown. Word for word the desktop
+ * wallet's (`src/utils/chainRestart.ts`, 0.1.0-mainnet.10).
+ */
+const CHAIN_RESTART_NOTICE =
+  "The SWARM network was restarted on 2 October 2026. Your addresses and recovery phrase are unchanged; balances start again from the new chain.";
 const PERFORMANCE_LEVEL = "High"; // the desktop wallet's own default
 const MIN_CONFIRMATIONS = 3; // what every desktop call site passes
 const ZATOSHIS_PER_COIN = 100000000;
@@ -76,11 +84,14 @@ function createRouter(deps) {
   const walletBaseDir = deps.walletBaseDir;
   const walletFileName = deps.walletFileName || WALLET_FILE_NAME;
   const loadFailure = deps.loadFailure || (() => null);
+  const records = deps.records || createRecordStore(walletBaseDir);
 
   let network = networkFor(deps.networkId || DEFAULT_NETWORK_ID);
   let baseDirSet = false;
   let opened = false;
   let syncStarted = false;
+  /** Set once this process has moved the wallet onto the restarted chain. */
+  let movedThisSession = null;
 
   const requireAddon = () => {
     if (!addon) {
@@ -114,6 +125,94 @@ function createRouter(deps) {
   };
 
   const chainHint = () => chainHintFor(network);
+
+  /**
+   * The SWARM network restart of 2 October 2026, as this host sees it.
+   *
+   * A SWARM Mainnet wallet whose record does not name this host's genesis was
+   * made on the abandoned chain (every host before 0.2.0 kept no record and
+   * could reach no other chain). It is moved ONCE, before it is opened, by the
+   * same core call the desktop wallet makes
+   * (`move_wallet_to_restarted_chain`): same keys, same addresses, birthday at
+   * the new chain's first block, none of the old chain's state, and a
+   * byte-identical backup of the old file beside it. If the move fails the
+   * core leaves the file exactly as it was, and the wallet is NOT opened:
+   * showing the abandoned chain's balances as if they were real is worse.
+   */
+  const needsMoveToRestartedChain = () => {
+    if (network.id !== "swarm-mainnet" || !network.genesis) return false;
+    const record = records.read(network, walletFileName);
+    return !record || record.genesis !== network.genesis;
+  };
+
+  /** Writes this host's genesis into the wallet's record. Only for SWARM Mainnet. */
+  const writeRecord = () => {
+    if (network.id !== "swarm-mainnet") return;
+    records.write(network, walletFileName, {
+      network: network.id,
+      genesis: network.genesis,
+      host: HOST_VERSION,
+      written: new Date().toISOString(),
+    });
+  };
+
+  /** Like writeRecord, for a wallet just made: a failure is logged, not thrown. */
+  const writeRecordForNewWallet = () => {
+    try {
+      writeRecord();
+    } catch (e) {
+      // The wallet exists and is fine. Without its record the next unlock
+      // moves it once more onto the same chain, which costs a rescan and
+      // nothing else.
+      log(`wallet record not written: ${e && e.message}`);
+    }
+  };
+
+  const moveToRestartedChain = async () => {
+    ensureBaseDir();
+    const core = requireAddon();
+    if (typeof core.move_wallet_to_restarted_chain !== "function") {
+      throw new CommandError(
+        "chain_restart_unsupported",
+        "This wallet was made before the SWARM network was restarted, and this wallet core cannot move it. It was not opened.",
+      );
+    }
+    let report;
+    try {
+      report = parseAddonJson(
+        "move_wallet_to_restarted_chain",
+        await core.move_wallet_to_restarted_chain(chainHint(), PERFORMANCE_LEVEL, MIN_CONFIRMATIONS, walletFileName),
+      );
+    } catch (e) {
+      const detail = (e && e.message) || String(e);
+      throw new CommandError(
+        "chain_restart_failed",
+        `The wallet could not be moved to the restarted SWARM network, so it was not opened. Nothing in it was changed. (${detail})`,
+      );
+    }
+    // The file is moved. A record that cannot be written means the next
+    // unlock moves it again: another backup and a rescan from block 1, no
+    // loss. The person is still told what happened.
+    try {
+      writeRecord();
+    } catch (e) {
+      log(`wallet record not written after the move: ${e && e.message}`);
+    }
+    const backup = String((report && report.backup_path) || "");
+    movedThisSession = {
+      moved: true,
+      notice: CHAIN_RESTART_NOTICE,
+      // The file name only: the extension has no use for the full path.
+      backupFile: backup ? backup.split(/[\\/]/).pop() : null,
+      birthday: Number.isFinite(Number(report && report.birthday)) ? Number(report.birthday) : null,
+      unifiedAddresses: Number(report && report.unified_addresses) || 0,
+      transparentAddresses: Number(report && report.transparent_addresses) || 0,
+    };
+    log(
+      `wallet moved to the restarted chain (${movedThisSession.unifiedAddresses} unified, ${movedThisSession.transparentAddresses} transparent addresses re-derived)`,
+    );
+    return movedThisSession;
+  };
 
   const walletExists = async () => {
     ensureBaseDir();
@@ -177,9 +276,16 @@ function createRouter(deps) {
           displayName: network.displayName,
           ticker: network.ticker,
           server: network.defaultServer,
+          genesis: network.genesis,
+          explorer: network.explorer,
           coinsAreTestCoins: network.coinsAreTestCoins,
         },
         walletDir: walletBaseDir,
+        // True while an existing wallet still has to be moved onto the
+        // restarted chain (it happens at the next unlock).
+        chainRestartPending: false,
+        // The sentence to show, once this process has moved the wallet.
+        chainRestartNotice: movedThisSession ? movedThisSession.notice : null,
         unlocked: session.isOpen() && opened,
         lockInSeconds: session.isOpen() ? session.secondsLeft() : 0,
         deviceAuth: await auth.check(),
@@ -190,6 +296,7 @@ function createRouter(deps) {
       if (!core) return out;
       try {
         out.walletExists = await walletExists();
+        out.chainRestartPending = out.walletExists && !opened && needsMoveToRestartedChain();
       } catch (e) {
         out.coreError = e.message;
       }
@@ -238,6 +345,8 @@ function createRouter(deps) {
       );
       parseAddonJson("init_new", result);
       opened = true;
+      // Made now, against the restarted chain's server and genesis.
+      writeRecordForNewWallet();
       session.open();
       const seedJson = parseAddonJson("get_seed", await core.get_seed());
       if (typeof core.save_wallet_file === "function") await core.save_wallet_file();
@@ -280,6 +389,7 @@ function createRouter(deps) {
       );
       parseAddonJson("init_from_seed", result);
       opened = true;
+      writeRecordForNewWallet();
       session.open();
       if (typeof core.save_wallet_file === "function") await core.save_wallet_file();
       return { restored: true, birthday, network: network.id };
@@ -295,12 +405,17 @@ function createRouter(deps) {
       if (!verdict.success) {
         throw new CommandError("auth_refused", "Windows Hello did not confirm it was you.");
       }
-      if (!opened) await openExisting();
+      let chainRestart = null;
+      if (!opened) {
+        if (needsMoveToRestartedChain()) chainRestart = await moveToRestartedChain();
+        await openExisting();
+      }
       session.open();
       return {
         unlocked: true,
         deviceAuth: verdict.deviceAuth,
         lockInSeconds: session.secondsLeft(),
+        chainRestart,
       };
     },
 
@@ -377,6 +492,7 @@ function createRouter(deps) {
           address: vt.recipient_address || vt.address || null,
           memos: Array.isArray(vt.memos) ? vt.memos : [],
           pending: !!vt.pending,
+          explorerUrl: explorerTxUrl(network, vt.txid) || null,
         })),
       };
     },
@@ -422,7 +538,7 @@ function createRouter(deps) {
       if (txids.length === 0) throw new CommandError("send_failed", "The payment returned no transaction id.");
       if (typeof core.save_wallet_file === "function") await core.save_wallet_file();
       session.touch();
-      return { txid: txids[0], txids, amount, to };
+      return { txid: txids[0], txids, amount, to, explorerUrl: explorerTxUrl(network, txids[0]) || null };
     },
 
     async "sync.start"() {
@@ -488,6 +604,7 @@ function createRouter(deps) {
           id: network.id,
           displayName: network.displayName,
           server: network.defaultServer,
+          explorer: network.explorer,
           coinsAreTestCoins: network.coinsAreTestCoins,
         },
       };
@@ -544,4 +661,4 @@ function createRouter(deps) {
   };
 }
 
-module.exports = { createRouter, CommandError, HOST_VERSION, ZATOSHIS_PER_COIN };
+module.exports = { createRouter, CommandError, HOST_VERSION, ZATOSHIS_PER_COIN, CHAIN_RESTART_NOTICE };

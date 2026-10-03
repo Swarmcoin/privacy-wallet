@@ -70,10 +70,12 @@
           <div class="error hidden" id="locked-error"></div>
           <button id="locked-unlock" class="primary">Unlock with Windows Hello</button>
           <p class="note" id="locked-note"></p>
+          <p class="note hidden" id="locked-restart"></p>
         </div>
 
         <!-- the wallet -->
         <div id="view-wallet" class="hidden">
+          <p class="note hidden" id="wallet-restart"></p>
           <div class="section">
             <div class="row between">
               <span class="balance-label">Shielded balance</span>
@@ -169,6 +171,7 @@
             <button id="sent-copy">Copy id</button>
             <button id="sent-done" class="primary">Done</button>
           </div>
+          <button id="sent-explorer" class="link hidden">View in the SWARM explorer</button>
         </div>
       </div>
 

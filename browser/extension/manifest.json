@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SWARM Wallet",
   "short_name": "SWARM Wallet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shielded SWM wallet. Your keys never enter the browser: the extension talks to the SWARM wallet host on this computer.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvdICTfJGD9tfxNThdosTOIJ4dSz1Oh4hQDPx0i4vTq+OEIl5UeiBKIiV0whwUq+Cf0ddvWXvdLyCIT319fF/2U2LET/2+cQgEcqg5X2PzBJFEs/fudLid96YDP+didpXFCeR/wBmggP5cc4y1Il7LbMONlOdeHsJ8bKvpHhWIfl6d9uZalQpA55xMANVSNKh6YPbraHkSB4fecGxRJ+aa4pu6IbdzTliOQPjqmpchapOKxKXt9RGS99t0p27JVSvQY4swiwYOBEiMhoEUBsIwF6GhlpAAtM2Nx60bwHXG7XN0WKuzxe2cmIxMe9MHUFSHfP1CXT1eIlbovb3tXJJmwIDAQAB",
   "minimum_chrome_version": "116",

@@ -32,7 +32,7 @@ They speak Chromium's native-messaging protocol over a pipe: UTF-8 JSON with a
                                    │        └── Windows Hello
                                    │                │
                                    │                ▼
-                                   │   lwd-main.swarm.green:8443 (gRPC/TLS)
+                                   │   lwd-main.swarm.green:443 (gRPC/TLS)
 ```
 
 ## Test it in five double-clicks

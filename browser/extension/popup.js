@@ -6,8 +6,27 @@
  * behind it. The reveal is per opening and is never remembered.
  */
 
-import { command, el, show, setText, setError, copyToClipboard, formatAmount, maskAmount, paintNetwork } from "./common.js";
+import {
+  command,
+  el,
+  show,
+  setText,
+  setError,
+  copyToClipboard,
+  formatAmount,
+  maskAmount,
+  paintNetwork,
+  openExplorer,
+} from "./common.js";
 import { encode, draw } from "./lib/qr.js";
+
+/**
+ * Shown on the locked screen while a wallet made before the restart waits to
+ * be moved. The same sentence the host returns after the move, and the
+ * desktop wallet's (0.1.0-mainnet.10).
+ */
+const RESTART_NOTICE =
+  "The SWARM network was restarted on 2 October 2026. Your addresses and recovery phrase are unchanged; balances start again from the new chain.";
 
 const VIEWS = ["nohost", "share", "setup", "locked", "wallet", "receive", "send", "confirm", "sent"];
 
@@ -22,7 +41,16 @@ let state = {
   addresses: null,
   showingTransparent: false,
   pendingSend: null,
+  /** The host's one sentence about the network restart, once the wallet was moved. */
+  restartNotice: null,
+  sentExplorerUrl: null,
 };
+
+/** The network-restart sentence, where the host says there is one to show. */
+function paintRestart(id, text) {
+  setText(id, text || "");
+  show(el(id), !!text);
+}
 
 function view(name) {
   for (const v of VIEWS) show(el(`view-${v}`), v === name);
@@ -91,8 +119,13 @@ async function refresh() {
     return;
   }
 
+  if (status.chainRestartNotice) state.restartNotice = status.chainRestartNotice;
+
   if (!status.unlocked) {
     view("locked");
+    // A wallet made before the restart is moved at this unlock. The host
+    // words the sentence; the popup only shows it.
+    paintRestart("locked-restart", status.chainRestartPending ? RESTART_NOTICE : null);
     setText(
       "locked-note",
       status.deviceAuth === "available"
@@ -108,6 +141,7 @@ async function refresh() {
 }
 
 async function paintWallet(status) {
+  paintRestart("wallet-restart", state.restartNotice);
   const [balance, addresses] = await Promise.all([command("balance"), command("addresses")]);
   if (balance.ok) paintBalance(balance.result);
   if (addresses.ok) state.addresses = addresses.result;
@@ -202,6 +236,8 @@ async function doSend() {
     return;
   }
   setText("sent-txid", answer.result.txid);
+  state.sentExplorerUrl = answer.result.explorerUrl || null;
+  show(el("sent-explorer"), !!state.sentExplorerUrl);
   el("send-to").value = "";
   el("send-amount").value = "";
   el("send-memo").value = "";
@@ -237,6 +273,8 @@ el("locked-unlock").addEventListener("click", async () => {
     setError("locked-error", answer.error);
     return;
   }
+  const moved = answer.result && answer.result.chainRestart;
+  if (moved && moved.notice) state.restartNotice = moved.notice;
   await command("sync.start");
   await refresh();
 });
@@ -277,6 +315,7 @@ el("send-review").addEventListener("click", review);
 el("confirm-cancel").addEventListener("click", () => view("send"));
 el("confirm-send").addEventListener("click", doSend);
 el("sent-copy").addEventListener("click", (e) => copyToClipboard(el("sent-txid").textContent, e.target));
+el("sent-explorer").addEventListener("click", () => openExplorer(state.sentExplorerUrl));
 el("sent-done").addEventListener("click", async () => {
   view("wallet");
   await refresh();

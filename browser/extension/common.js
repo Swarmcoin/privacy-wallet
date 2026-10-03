@@ -83,6 +83,24 @@ export async function copyToClipboard(text, button) {
   }
 }
 
+/**
+ * The SWARM explorers a link may open, and nothing else. The host builds the
+ * URL; this is the second check, on the side that opens the tab.
+ */
+const EXPLORERS = ["https://explore.swarm.green/", "https://testnet.explore.swarm.green/"];
+
+export function isExplorerUrl(url) {
+  const u = String(url || "");
+  return EXPLORERS.some((prefix) => u.startsWith(prefix)) && !/[\s"'<>]/.test(u);
+}
+
+/** Opens a SWARM explorer page in a new tab. Anything else is ignored. */
+export function openExplorer(url) {
+  if (!isExplorerUrl(url)) return false;
+  chrome.tabs.create({ url });
+  return true;
+}
+
 /** Whether the popup should say "test coins" anywhere. */
 export function paintNetwork(node, network) {
   if (!node || !network) return;

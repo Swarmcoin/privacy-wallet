@@ -6,6 +6,7 @@ const assert = require("node:assert");
 const { createRouter } = require("../src/router");
 const { createSession } = require("../src/auth");
 const { chainHintFor, MAINNET, TESTNET } = require("../src/networks");
+const { createMemoryRecordStore } = require("../src/records");
 
 const MAINNET_ADDRESS =
   "swm1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
@@ -122,6 +123,13 @@ function build(options = {}) {
     walletBaseDir: "C:\\test\\SWARM Browser Wallet",
     networkId: options.networkId || "swarm-mainnet",
     loadFailure: options.loadFailure,
+    // Never the disk: the wallet records live in memory in every unit test.
+    // These tests are about a wallet made on the current chain, so its record
+    // names the current genesis; the restart move is tested in restart.test.js.
+    records:
+      options.records ||
+      createMemoryRecordStore({ "swarm-mainnet/swarm-browser-wallet.dat": { genesis: MAINNET.genesis } }),
+    log: options.log,
   });
   return { router, addon, auth, session };
 }
@@ -149,7 +157,7 @@ test("status works with no wallet and names the network", async () => {
   const answer = await call(router, "status");
   assert.ok(answer.ok);
   assert.strictEqual(answer.result.network.id, "swarm-mainnet");
-  assert.strictEqual(answer.result.network.server, "https://lwd-main.swarm.green:8443");
+  assert.strictEqual(answer.result.network.server, "https://lwd-main.swarm.green:443");
   assert.strictEqual(answer.result.walletExists, false);
   assert.strictEqual(answer.result.unlocked, false);
 });
@@ -184,6 +192,7 @@ test("creating a wallet returns the seed once and never logs it", async () => {
     session,
     log: (line) => logged.push(line),
     walletBaseDir: "C:\\test",
+    records: createMemoryRecordStore(),
   });
   const answer = await call(router, "wallet.create");
   assert.ok(answer.ok);
@@ -454,6 +463,7 @@ test("a missing wallet core is reported, not thrown", async () => {
     auth: mockAuth(),
     session,
     walletBaseDir: "C:\\test",
+    records: createMemoryRecordStore(),
     loadFailure: () => new Error("native.node was not found"),
   });
   const status = await router.handle({ id: 1, command: "status" });

@@ -116,7 +116,8 @@ async function main() {
     const status = ok(await client.ask("status"), "status");
     if (status.core !== "loaded") throw new Error(`the wallet core did not load: ${status.coreError}`);
     step("host", `version ${status.hostVersion} on Node ${status.node}`);
-    step("network", `${status.network.displayName} via ${status.network.server}`);
+    step("network", `${status.network.displayName} via ${status.network.server}, genesis ${String(status.network.genesis).slice(0, 12)}…`);
+    report.genesis = status.network.genesis;
     step("indexer height", status.serverHeight === null ? `unreachable: ${status.serverError}` : String(status.serverHeight));
     report.serverHeight = status.serverHeight;
     report.deviceAuth = status.deviceAuth;
@@ -132,6 +133,19 @@ async function main() {
     if (words !== 24) throw new Error(`expected a 24-word seed, got ${words} words`);
     step("wallet.create", `a new wallet, seed of ${words} words (not shown), birthday ${created.birthday}`);
     report.birthday = created.birthday;
+    if (NETWORK === "swarm-mainnet") {
+      // Host 0.2.0: a new wallet is recorded with the genesis it was made on,
+      // so it is never mistaken for one made before the network restart.
+      const recordFile = path.join(walletDir, "swarm-mainnet", "swarm-browser-wallet.dat.record.json");
+      const record = JSON.parse(fs.readFileSync(recordFile, "utf8"));
+      if (record.genesis !== status.network.genesis) {
+        throw new Error(`the wallet record names genesis ${record.genesis}, not ${status.network.genesis}`);
+      }
+      report.recordGenesis = record.genesis;
+      step("wallet record", `genesis ${record.genesis.slice(0, 12)}… written beside the wallet file`);
+      const after = ok(await client.ask("status"), "status");
+      if (after.chainRestartPending) throw new Error("a wallet made now is reported as needing the restart move");
+    }
 
     const addresses = ok(await client.ask("addresses"), "addresses");
     const unified = String(addresses.unified || "");

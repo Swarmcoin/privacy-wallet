@@ -23,10 +23,20 @@ const MAINNET = {
   ticker: "SWM",
   unifiedHrp: "swm",
   transparentPrefixes: ["s1", "s3"],
-  defaultServer: "https://lwd-main.swarm.green:8443",
-  genesis: "01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd",
+  // The restarted chain (2 October 2026). Its indexer is served on 443; port
+  // 8443 belonged to the abandoned chain and is no longer served.
+  defaultServer: "https://lwd-main.swarm.green:443",
+  genesis: "01b76d8a0f18c502b23ab6605e26296d189aa5770fc4a34155e5c7b250a0eff2",
+  /**
+   * The genesis SWARM Mainnet launched from on 2026-09-26 and abandoned at the
+   * restart of 2026-10-02. Every browser wallet made before host 0.2.0 was
+   * made on it; see `chainRestart` in router.js.
+   */
+  retiredGenesis: ["01c34428b9e67cdd8345e0b365aaa37dd8d2d65d3869e0e5d77d567f2c39afdd"],
   activationHeight: 1,
   coinsAreTestCoins: false,
+  /** The block explorer, no trailing slash. Transactions are at /transactions/<txid>. */
+  explorer: "https://explore.swarm.green",
   /** The folder the addon appends to the wallet base directory for this chain. */
   walletSubdir: "swarm-mainnet",
 };
@@ -42,6 +52,7 @@ const TESTNET = {
   genesis: "045993f5c91ea160c7ebda573dd97b0016816bca68d395bfff202779b88e2a28",
   activationHeight: 1,
   coinsAreTestCoins: true,
+  explorer: "https://testnet.explore.swarm.green",
   walletSubdir: "swarm-testnet",
 };
 
@@ -67,6 +78,13 @@ function chainHintFor(network) {
   return `${network.chainLabel}:${network.genesis}`;
 }
 
+/** The explorer page of a transaction on `network`, or "" for a txid that is not one. */
+function explorerTxUrl(network, txid) {
+  const id = String(txid || "").trim();
+  if (!network || !network.explorer || !/^[0-9a-f]{64}$/i.test(id)) return "";
+  return `${network.explorer}/transactions/${id}`;
+}
+
 /** Whether `address` looks like one of `network`'s own encodings. */
 function looksLikeAddressOf(network, address) {
   const a = String(address || "").trim();
@@ -81,6 +99,7 @@ module.exports = {
   NETWORKS,
   networkFor,
   chainHintFor,
+  explorerTxUrl,
   looksLikeAddressOf,
   DEFAULT_NETWORK_ID: "swarm-mainnet",
 };

@@ -6,7 +6,18 @@
  * reading, which is why the popup masks and this does not.
  */
 
-import { command, el, show, setText, setError, shortAddress, formatAmount, paintNetwork } from "./common.js";
+import {
+  command,
+  el,
+  show,
+  setText,
+  setError,
+  shortAddress,
+  formatAmount,
+  paintNetwork,
+  isExplorerUrl,
+  openExplorer,
+} from "./common.js";
 
 function row(transfer, ticker) {
   const incoming = String(transfer.kind || "").toLowerCase().includes("receiv");
@@ -43,6 +54,13 @@ function row(transfer, ticker) {
     txid.className = "txid";
     txid.textContent = transfer.txid;
     wrapper.append(txid);
+    if (isExplorerUrl(transfer.explorerUrl)) {
+      const link = document.createElement("button");
+      link.className = "link";
+      link.textContent = "View in the SWARM explorer";
+      link.addEventListener("click", () => openExplorer(transfer.explorerUrl));
+      wrapper.append(link);
+    }
   }
   return wrapper;
 }
