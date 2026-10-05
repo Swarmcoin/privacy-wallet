@@ -1,13 +1,14 @@
 /**
  * Screenshots of the price display, from test/popup-harness.html.
  *
- *   node test/screenshots.mjs [path\to\msedge.exe]
+ *   node test/screenshots.mjs [--live] [path\to\msedge.exe]
  *
  * Serves this extension folder on 127.0.0.1 (a random port, this process
  * only), opens each state in a headless Edge with a throwaway profile, and
  * writes test/screenshots/<page>-<state>.png. Nothing is registered, no
  * wallet is opened, and the harness answers the price relay itself, so no
- * request leaves the machine.
+ * request leaves the machine. With --live, two more shots read the real relay
+ * (https://wallet.swarm.green/api/price/swm, one GET each, read-only).
  */
 import http from "node:http";
 import { readFile, mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -19,7 +20,9 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const out = path.join(here, "screenshots");
-const edge = process.argv[2] || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const args = process.argv.slice(2);
+const live = args.includes("--live");
+const edge = args.find((a) => !a.startsWith("--")) || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 
 const SHOTS = [
   ["popup", "fresh", 700],
@@ -33,6 +36,16 @@ const SHOTS = [
   ["popup", "send", 560],
   ["popup", "confirm", 560],
   ["settings", "fresh", 1250],
+  ["popup", "page", 1400],
+  ["popup", "page-30d", 1400],
+  ["popup", "page-hover", 1400],
+  ["popup", "page-off", 560],
+  ...(live
+    ? [
+        ["popup", "live", 760],
+        ["popup", "page-live", 1400],
+      ]
+    : []),
 ];
 
 const TYPES = {
