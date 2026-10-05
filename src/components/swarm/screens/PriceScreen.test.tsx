@@ -115,9 +115,14 @@ describe("a fresh price", () => {
   it("shows the pool's figures", () => {
     renderPage({ swmPrice: FRESH });
     const pool = screen.getByRole("region", { name: "Pool" });
-    for (const text of ["$3,761.34", "$378.11", "$8,411.43", "9 / 0", "0.9 %", "Base"]) {
+    for (const text of ["$378.11", "$8,411.43", "9 / 0", "0.9 %"]) {
       expect(pool).toHaveTextContent(text);
     }
+    // Owner, 2026-10-05: no liquidity figure and no network row.
+    expect(pool).not.toHaveTextContent("$3,761.34");
+    expect(pool).not.toHaveTextContent(/liquidity/i);
+    expect(pool).not.toHaveTextContent(/network|base/i);
+    expect(screen.getByText("SWM / USD")).toBeInTheDocument();
   });
 
   it("lists each source with its own reading, a failed one with a dash", () => {

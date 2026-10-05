@@ -87,7 +87,8 @@ describe("the SWM price", () => {
     expect(screen.getByText("SWM PRICE")).toBeInTheDocument();
     expect(screen.getByText("$0.8411")).toBeInTheDocument();
     expect(screen.getByText("▲ 36.7 % 24h")).toBeInTheDocument();
-    expect(screen.getByText(/Base · Uniswap v4 · GeckoTerminal · updated 12 s ago/)).toBeInTheDocument();
+    expect(screen.getByText(/GeckoTerminal · updated 12 s ago/)).toBeInTheDocument();
+    expect(screen.queryByText(/Base · Uniswap v4/)).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Indicative price from the SWM/ETH pool on Base. The pool is small; small trades move it. Not a quote.",

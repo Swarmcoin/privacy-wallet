@@ -12,8 +12,8 @@ Newest first. Each entry says what changed for the person using the wallet.
 - **A page for the price.** Click the price, or Price in the sidebar: the
   price in dollars and ETH, the change over 1, 6 and 24 hours, a chart over
   24 hours, 48 hours or 30 days that reads out any point you point at, the
-  pool's liquidity, volume and fees, what GeckoTerminal and DexScreener each
-  read, the pool and token addresses to copy, and buttons that open the pool
+  pool's 24-hour volume, fully diluted value, buys and sells and fee, what
+  GeckoTerminal and DexScreener each read, the pool and token addresses to copy, and buttons that open the pool
   on DexScreener or GeckoTerminal in your browser.
 - **Where the price comes from.** The SWARM price service at
   wallet.swarm.green, which reads the SWM/ETH pool on Base from

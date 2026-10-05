@@ -159,13 +159,12 @@ export const PriceScreen: React.FC = () => {
   const balanceFiat = shown ? fiatLine(balances.total, price.priceUsd, hidden) : null;
 
   const tx = details?.transactions24h;
+  // Owner, 2026-10-05 21:0x UTC: no liquidity figure and no network row.
   const stats: { k: string; v: string | null }[] = [
-    { k: "Liquidity", v: formatUsdAmount(details?.liquidityUsd) },
     { k: "24 h volume", v: formatUsdAmount(details?.volume24hUsd) },
     { k: "Fully diluted value", v: formatUsdAmount(details?.fdvUsd) },
     { k: "Buys / sells 24 h", v: tx ? `${tx.buys} / ${tx.sells}` : null },
     { k: "Pool fee", v: `${(details?.poolFeePct ?? SWM_POOL_FEE_PCT).toLocaleString("en-US")} %` },
-    { k: "Network", v: "Base" },
   ];
 
   const sourceReading = (id: SwmPriceSource) => details?.sources.find((s) => s.id === id) ?? null;
@@ -176,7 +175,7 @@ export const PriceScreen: React.FC = () => {
         {back}
         <span className={styles.pricePageId}>
           <img src={markUrl} alt="" width={26} height={12} aria-hidden="true" />
-          SWM / USD · Base
+          SWM / USD
         </span>
         <span className={styles.pricePageWhen}>
           <span className={`${styles.statusDot} ${dotClass}`} aria-hidden="true" />

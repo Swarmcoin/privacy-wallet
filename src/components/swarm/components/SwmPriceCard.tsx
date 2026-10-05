@@ -114,9 +114,8 @@ export const SwmPriceCard: React.FC<{ price: SwmPriceState }> = ({ price }) => {
     }
   }
 
-  const meta = ["Base", "Uniswap v4", price.source ? SOURCE_LABEL[price.source] : null, when || null]
-    .filter(Boolean)
-    .join(" · ");
+  // Owner, 2026-10-05 21:0x UTC: no "Base · Uniswap v4" on the card.
+  const meta = [price.source ? SOURCE_LABEL[price.source] : null, when || null].filter(Boolean).join(" · ");
 
   // The card opens the price page; the listing links live there now
   // (specs/PRICE-DISPLAY.md §6).
