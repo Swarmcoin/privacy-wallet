@@ -51,8 +51,14 @@ export const FRESHNESS = Object.freeze({
   UNAVAILABLE: "unavailable",
 });
 
-const HOURLY_MAX_POINTS = 48;
-const DAILY_MAX_POINTS = 30;
+/**
+ * Closes per series (spec §6.1). The relay appends the live price as one more
+ * value, so a series may be one longer: 49 hourly, 31 daily.
+ */
+const HOURLY_CLOSES = 48;
+const DAILY_CLOSES = 30;
+const HOURLY_MAX_POINTS = HOURLY_CLOSES + 1;
+const DAILY_MAX_POINTS = DAILY_CLOSES + 1;
 const HOUR_S = 3600;
 const DAY_S = 86400;
 export const SOURCE_NAMES = Object.freeze({ geckoterminal: "GeckoTerminal", dexscreener: "DexScreener" });
@@ -448,29 +454,43 @@ export const RANGES = Object.freeze(["24h", "48h", "30d"]);
  * The values (and their times, when the relay said when the series starts)
  * for one range of the price page's chart, or null when the range has no data:
  * 24h = the last 24 hourly closes, 48h = all hourly, 30d = the daily closes.
+ *
+ * A series exactly one longer than its close count (49 hourly, 31 daily) ends
+ * at the live price: that last value is kept in every range (`live: true`),
+ * has no close time (null in `times`; the page says "now"), and the earlier
+ * points keep the times they would have had without it.
  */
 export function rangeSeries(reading, range) {
   if (!reading) return null;
-  let values;
+  let all;
+  let closes;
+  let take;
   let fromUnix;
   let stepS;
   if (range === "24h" || range === "48h") {
-    const all = reading.sparkline_usd;
-    if (!all) return null;
-    values = range === "24h" ? all.slice(-24) : all;
-    fromUnix = reading.hourly_from_unix ? reading.hourly_from_unix + (all.length - values.length) * HOUR_S : null;
+    all = reading.sparkline_usd;
+    closes = HOURLY_CLOSES;
+    take = range === "24h" ? 24 : HOURLY_CLOSES;
+    fromUnix = reading.hourly_from_unix || null;
     stepS = HOUR_S;
   } else if (range === "30d") {
-    values = reading.daily_usd;
-    if (!values) return null;
+    all = reading.daily_usd;
+    closes = DAILY_CLOSES;
+    take = DAILY_CLOSES;
     fromUnix = reading.daily_from_unix || null;
     stepS = DAY_S;
   } else {
     return null;
   }
-  if (!values || values.length < 2) return null;
-  const times = fromUnix ? values.map((_, i) => (fromUnix + i * stepS) * 1000) : null;
-  return { range, values, times, daily: range === "30d" };
+  if (!all) return null;
+  const live = all.length === closes + 1;
+  const values = all.slice(-(take + (live ? 1 : 0)));
+  if (values.length < 2) return null;
+  const offset = all.length - values.length; // index of values[0] in the whole series
+  const times = fromUnix
+    ? values.map((_, i) => (live && i === values.length - 1 ? null : (fromUnix + (offset + i) * stepS) * 1000))
+    : null;
+  return { range, values, times, daily: range === "30d", live };
 }
 
 /** Which ranges have data: { "24h": true, "48h": true, "30d": false }. */

@@ -535,7 +535,10 @@ function hoverAt(x) {
   show(cursor, true);
   show(el("pp-hover"), true);
   const value = formatUsdValue(c.series.values[i]);
-  const when = c.series.times ? formatPointTime(c.series.times[i], c.series.daily) : null;
+  // The last point is the newest value: the live price when the relay appended it.
+  let when = null;
+  if (i === n - 1) when = "now";
+  else if (c.series.times && c.series.times[i] !== null) when = formatPointTime(c.series.times[i], c.series.daily);
   setText("pp-readout", when ? `${value} · ${when}` : value);
 }
 

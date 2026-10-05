@@ -147,8 +147,8 @@ test("the §6.1 additions parse, each checked on its own", () => {
 test("a trimmed series keeps its start time honest", () => {
   const long = Array.from({ length: 60 }, (_, i) => i + 1);
   const r = parsePriceDocument(doc({ sparkline_usd: long, hourly_from_unix: 1000 * 3600 }), T0).reading;
-  assert.equal(r.sparkline_usd.length, 48);
-  assert.equal(r.hourly_from_unix, (1000 + 12) * 3600);
+  assert.equal(r.sparkline_usd.length, 49);
+  assert.equal(r.hourly_from_unix, (1000 + 11) * 3600);
 });
 
 test("the listing links and the pool are fixed, whatever the relay says", () => {
@@ -196,7 +196,7 @@ test("an unusable sparkline is dropped, not the price", () => {
   assert.equal(parsePriceDocument(doc({ sparkline_usd: "0.5,0.6" }), T0).reading.sparkline_usd, null);
   assert.equal(parsePriceDocument(doc({ sparkline_usd: undefined }), T0).reading.sparkline_usd, null);
   const long = Array.from({ length: 60 }, (_, i) => i + 1);
-  assert.deepEqual(parsePriceDocument(doc({ sparkline_usd: long }), T0).reading.sparkline_usd, long.slice(-48));
+  assert.deepEqual(parsePriceDocument(doc({ sparkline_usd: long }), T0).reading.sparkline_usd, long.slice(-49));
 });
 
 test("missing change and unknown source are tolerated", () => {
@@ -433,6 +433,48 @@ test("ranges: 24h = last 24 hourly, 48h = all hourly, 30d = daily", () => {
   assert.equal(pickRange({ daily_usd: daily }, "24h"), "30d");
   assert.equal(pickRange({}, "24h"), null);
   assert.equal(pickRange(null, "24h"), null);
+});
+
+test("a series one longer than its closes ends at the live price", () => {
+  const from = 1791050000;
+  const hourly = Array.from({ length: 49 }, (_, i) => 1 + i); // 48 closes + live
+  const daily = Array.from({ length: 31 }, (_, i) => 100 + i); // 30 closes + live
+  const r = { sparkline_usd: hourly, hourly_from_unix: from, daily_usd: daily, daily_from_unix: 1788652800 };
+
+  const day = rangeSeries(r, "24h");
+  assert.equal(day.live, true);
+  assert.deepEqual(day.values, hourly.slice(-25), "24 closes and the live price");
+  assert.equal(day.times[0], (from + 24 * 3600) * 1000, "same time labels as without the live value");
+  assert.equal(day.times[23], (from + 47 * 3600) * 1000);
+  assert.equal(day.times[24], null);
+
+  const two = rangeSeries(r, "48h");
+  assert.equal(two.values.length, 49);
+  assert.equal(two.times[0], from * 1000);
+  assert.equal(two.times[47], (from + 47 * 3600) * 1000);
+  assert.equal(two.times[48], null);
+
+  const month = rangeSeries(r, "30d");
+  assert.equal(month.live, true);
+  assert.equal(month.values.length, 31);
+  assert.equal(month.times[29], (1788652800 + 29 * 86400) * 1000);
+  assert.equal(month.times[30], null);
+
+  // Exactly the close count: no live value, every point has its time.
+  const plain = rangeSeries({ sparkline_usd: hourly.slice(0, 48), hourly_from_unix: from }, "24h");
+  assert.equal(plain.live, false);
+  assert.equal(plain.values.length, 24);
+  assert.equal(plain.times[23], (from + 47 * 3600) * 1000);
+
+  // Parsing keeps 49 hourly and 31 daily, and trims one more from the front.
+  const parsed = parsePriceDocument(
+    doc({ sparkline_usd: [0.5, ...hourly], hourly_from_unix: from - 3600, daily_usd: [99, ...daily], daily_from_unix: 1788652800 - 86400 }),
+    T0,
+  ).reading;
+  assert.equal(parsed.sparkline_usd.length, 49);
+  assert.equal(parsed.hourly_from_unix, from);
+  assert.equal(parsed.daily_usd.length, 31);
+  assert.equal(parsed.daily_from_unix, 1788652800);
 });
 
 test("hover time labels", () => {
