@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  A test harness, not part of the extension. It shows the real popup.html /
+  settings.html with the real popup.js / settings.js, over fake chrome.* APIs
+  and a fake price relay, so the price display can be looked at without the
+  wallet host, without registering anything, and without any network.
+
+  Served by test/screenshots.mjs from 127.0.0.1 (ES modules do not load over
+  file://). Query: ?page=popup|settings&state=<name>; see harness-stub.js.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SWARM Wallet harness</title>
+    <link rel="stylesheet" href="../swarm.css" />
+  </head>
+  <body>
+    <script type="module">
+      import { install } from "./harness-stub.js";
+
+      const params = new URLSearchParams(location.search);
+      const page = params.get("page") === "settings" ? "settings" : "popup";
+      const after = install(params.get("state") || "fresh");
+
+      const html = await (await fetch(`../${page}.html`)).text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      for (const s of doc.body.querySelectorAll("script")) s.remove();
+      // Asset paths in the page are relative to the extension folder.
+      for (const node of doc.body.querySelectorAll("[src]")) {
+        const src = node.getAttribute("src");
+        if (!/^[a-z]+:/i.test(src)) node.setAttribute("src", `../${src}`);
+      }
+      document.body.replaceChildren(...doc.body.childNodes);
+      await import(`../${page}.js`);
+      after(page);
+    </script>
+  </body>
+</html>
