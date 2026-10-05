@@ -137,7 +137,7 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
         <div>
           <div>Startup stopped responding at: {this.state.step}</div>
           <div className={cstyles.margintoplarge}>
-            Please report this at github.com/Swarm-Official/privacy-wallet/issues, including the step above and the version shown
+            Please report this at github.com/Swarmcoin/privacy-wallet/issues, including the step above and the version shown
             on the start screen.
           </div>
         </div>,
@@ -177,7 +177,7 @@ class LoadingScreen extends Component<LoadingScreenProps, LoadingScreenState> {
               what it shows is what we get to read. */}
           <div className={cstyles.margintoplarge}>{userFacingError(error)}</div>
           <div className={cstyles.margintoplarge}>
-            Please report this at github.com/Swarm-Official/privacy-wallet/issues, including the message above.
+            Please report this at github.com/Swarmcoin/privacy-wallet/issues, including the message above.
           </div>
         </div>,
       );

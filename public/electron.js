@@ -121,8 +121,8 @@ const selectableChainOrFallback = (chain) => {
 // for the other.
 const SWARM_POLKIT_ACTION = "green.swarm.wallet.authenticate";
 const SWARM_SITE_URL = "https://swarm.green";
-const SWARM_SOURCE_URL = "https://github.com/Swarm-Official";
-const SWARM_ISSUES_URL = "https://github.com/Swarm-Official/privacy-wallet/issues";
+const SWARM_SOURCE_URL = "https://github.com/Swarmcoin";
+const SWARM_ISSUES_URL = "https://github.com/Swarmcoin/privacy-wallet/issues";
 
 if (isSwarmWalletBuild && !settings.getSync("all")) {
   settings.setSync("all", {
