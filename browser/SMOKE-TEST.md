@@ -45,14 +45,21 @@ Unlock first; the price lives on the wallet screen.
   `Base · Uniswap v4 · GeckoTerminal · updated … s ago`.
 - **ⓘ** shows: "Indicative price from the SWM/ETH pool on Base. The pool is
   small; small trades move it. Not a quote."
-- Clicking the card opens the pool on **dexscreener.com** in a new tab.
+- Clicking the card opens the **SWM price** page inside the popup (it
+  scrolls): price in USD and ETH, 1h / 6h / 24h chips, a chart with
+  **24h / 48h / 30d** (a range without data is greyed out; move the mouse
+  over the chart for value and time), your balance (hidden until **Show**),
+  pool statistics, both sources with ✓ or —, pool and token with **Copy**,
+  **Open on DexScreener** / **Open on GeckoTerminal** (each opens a tab on
+  that site), the note and the switch. **Back** returns to the wallet.
+- Switching the price off on that page leaves only the note and the switch.
 - **Send**: typing an amount shows `≈ $… USD` under it, and the confirmation
   screen repeats it.
 - **Settings → SWM price**: switch **Show SWM price (USD)** off, reopen the
   popup: no card and no `≈ … USD` lines. Switch it back on.
-- Until the SWARM price service answers at
-  `https://wallet.swarm.green/api/price/swm`, the card reads **Price
-  unavailable**; nothing else is affected.
+- If the SWARM price service at `https://wallet.swarm.green/api/price/swm`
+  does not answer, the card reads **Price unavailable** after an hour (greyed
+  "as of hh:mm" before that); nothing else is affected.
 
 The same states are in `extension\test\screenshots\` (made with
 `node test\screenshots.mjs`, fake data, no wallet).

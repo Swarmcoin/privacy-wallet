@@ -120,9 +120,13 @@ price, as `specs/PRICE-DISPLAY.md` in the project repository describes:
   never ask.
 - **What it shows.** `≈ $… USD` under the shielded balance (masked as
   `≈ •••••• USD` while the balance is hidden), a price card (price, 24 h
-  change, 48 h sparkline, source and age; a click opens the pool on
-  DexScreener), and `≈ $… USD` under the send amount and on the confirmation
-  screen. The value is shielded balance × price in BigInt arithmetic on the
+  change, 48 h sparkline, source and age), and `≈ $… USD` under the send
+  amount and on the confirmation screen. The card opens the **price page**
+  (spec §6): price in USD and ETH, 1h/6h/24h change, a chart with
+  24h/48h/30d ranges and a hover readout, your balance (masked with it),
+  pool statistics, both aggregators' readings, the pool id and token contract
+  with copy buttons, links to DexScreener and GeckoTerminal (fixed URLs, never
+  taken from the relay), the note and the same on/off switch as Settings. The value is shielded balance × price in BigInt arithmetic on the
   zatoshi amount, rounded half-up to the cent: a display, not a quote.
 - **Freshness.** Fresh under 5 minutes; 5–30 minutes "as of hh:mm"; over 30
   minutes, or when the relay says `stale`, greyed; over 60 minutes "Price
@@ -171,6 +175,7 @@ wallet with its own recovery phrase. Override it for a test with
 cd browser/host       && npm test    # framing codec + command router, mocked core
 cd browser/extension  && npm test    # QR encoder, sender and Rewards checks, the price module
 node browser/extension/test/screenshots.mjs   # price display screenshots, headless Edge, no host, no network
+                                              # (--live adds two shots that read the real relay once each)
 node browser/e2e/launcher-check.js   # the .cmd launcher, exactly as Chromium starts it
 node browser/e2e/e2e-mainnet.js      # a disposable wallet against live SWARM mainnet
 ```
