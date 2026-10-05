@@ -17,6 +17,7 @@ import { WalletType } from "./types/WalletType";
 import { BlockExplorerEnum } from "./enums/BlockExplorerEnum";
 import { ServerSelectionEnum } from "./enums/ServerSelectionEnum";
 import type { ServerChainNameEnum } from "./enums/ServerChainNameEnum";
+import { SWM_PRICE_OFF, SwmPriceState } from "../../price/swmPriceTypes";
 
 export default class AppState {
   // The total confirmed and unconfirmed balance in this wallet
@@ -111,6 +112,16 @@ export default class AppState {
   // render `--` in that case.
   zecPrice: number;
 
+  // The SWM price from the SWARM price service (specs/PRICE-DISPLAY.md),
+  // with its freshness. Nothing to do with `zecPrice` above, which is the
+  // upstream ZEC figure and always 0 here. OFF unless the setting is on and
+  // this is a SWARM mainnet wallet, open and unlocked (see src/price/).
+  swmPrice: SwmPriceState;
+  // Settings → "Show SWM price (USD)", default on, persisted as
+  // `showSwmPrice`. Off means no price requests at all.
+  showSwmPrice: boolean;
+  setShowSwmPrice: (on: boolean) => void;
+
   // The screen projection of Mixnet Mode (ADR 0024): drives the header icon
   // and the fail-closed send gate. Defaults to the unknown (blocked) view
   // until the first status poll.
@@ -168,6 +179,9 @@ export default class AppState {
     this.addAddressBookEntry = () => {};
     this.setSwapTo = () => {};
     this.zecPrice = 0;
+    this.swmPrice = SWM_PRICE_OFF;
+    this.showSwmPrice = true;
+    this.setShowSwmPrice = () => {};
     this.mixnetView = UNKNOWN_MIXNET_VIEW;
     this.serverHealth = INITIAL_SERVER_HEALTH;
     this.rotateServer = () => {};

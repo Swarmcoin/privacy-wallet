@@ -62,6 +62,10 @@ import { ActivityScreen } from "../components/swarm/screens/ActivityScreen";
 import { AddressesScreen } from "../components/swarm/screens/AddressesScreen";
 import { OnboardingScreen } from "../components/swarm/screens/OnboardingScreen";
 import { SwarmActionsContext } from "../components/swarm/SwarmActionsContext";
+import { useSwmPrice } from "../price/useSwmPrice";
+import { swmPriceAllowed } from "../price/swmPrice";
+import { SWARM_COINS_ARE_TEST_COINS } from "../utils/swarmNetwork";
+import { SwarmProfileIdEnum, swarmProfileFor } from "../utils/networkProfiles";
 
 const { ipcRenderer } = window.electronAPI;
 
@@ -172,6 +176,17 @@ const AppRoutes: React.FC = () => {
   const [zecPrice, setZecPriceState] = useState<number>(0);
   const setZecPrice = useCallback((price?: number) => {
     if (typeof price === "number") setZecPriceState(price);
+  }, []);
+
+  // Settings → "Show SWM price (USD)". `null` until the settings file has been
+  // read, so a user who switched it off never sees a request go out in the
+  // moment before their choice is known.
+  const [showSwmPriceSetting, setShowSwmPriceSetting] = useState<boolean | null>(null);
+  const setShowSwmPrice = useCallback((on: boolean) => {
+    setShowSwmPriceSetting(on);
+    ipcRenderer.invoke("saveSettings", { key: "showSwmPrice", value: on }).catch((e: unknown) => {
+      console.warn("setShowSwmPrice: could not persist setting", e);
+    });
   }, []);
 
   const [mixnetView, setMixnetViewState] = useState<MixnetView>(defaultAppState.mixnetView);
@@ -328,6 +343,8 @@ const AppRoutes: React.FC = () => {
       setLockMode(hasCode ? "code" : deviceLock ? "device" : "none");
       setLocked(hasCode || deviceLock);
       setLockChecked(true);
+      // Default on (specs/PRICE-DISPLAY.md §2.2); only an explicit false is off.
+      setShowSwmPriceSetting(allSettings?.showSwmPrice !== false);
       if (allSettings && Object.prototype.hasOwnProperty.call(allSettings, "blockexplorer")) {
         setBlockExplorerState(swarmExplorerSettings());
       }
@@ -757,6 +774,23 @@ const AppRoutes: React.FC = () => {
     return rpcRef.current!.drainOrchardToIronwood();
   }, []);
 
+  // The SWM price. Polled only while every condition in `swmPriceAllowed`
+  // holds; the hook adds the last one, that the window is visible.
+  const swmPrice = useSwmPrice(
+    swmPriceAllowed({
+      setting: showSwmPriceSetting,
+      testCoinBuild: SWARM_COINS_ARE_TEST_COINS,
+      walletIsMainnet: swarmProfileFor(currentWallet?.chain_name)?.id === SwarmProfileIdEnum.mainnet,
+      walletOpen:
+        !!currentWallet?.id &&
+        !currentWalletOpenError &&
+        location.pathname !== routes.LOADING &&
+        location.pathname !== routes.ADDNEWWALLET,
+      locked: locked || !lockChecked,
+    }),
+  );
+  const showSwmPrice = showSwmPriceSetting !== false;
+
   // --- P4: memoized context value ---
   const contextAppState = useMemo<AppState>(
     () => ({
@@ -792,6 +826,9 @@ const AppRoutes: React.FC = () => {
       handleShieldButton,
       addAddressBookEntry,
       zecPrice,
+      swmPrice,
+      showSwmPrice,
+      setShowSwmPrice,
       mixnetView,
       serverHealth,
       rotateServer,
@@ -842,6 +879,9 @@ const AppRoutes: React.FC = () => {
       handleShieldButton,
       addAddressBookEntry,
       zecPrice,
+      swmPrice,
+      showSwmPrice,
+      setShowSwmPrice,
       mixnetView,
       serverHealth,
       rotateServer,

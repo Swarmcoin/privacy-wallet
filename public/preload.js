@@ -193,6 +193,11 @@ const ALLOWED_INVOKE = new Set([
   "treasury:signers:read",
   "treasury:signers:remove",
   "treasury:relay",
+  // The SWM price from the SWARM price service, and its listing page. Main
+  // holds the URLs, the host allowlist and the validation; neither channel
+  // takes a URL from the renderer.
+  "price:swm",
+  "price:open-listing",
 ]);
 
 contextBridge.exposeInMainWorld("electronAPI", {

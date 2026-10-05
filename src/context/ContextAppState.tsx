@@ -17,6 +17,7 @@ import {
   ErrorModalClass,
   BlockExplorerEnum,
 } from "../components/appstate";
+import { SWM_PRICE_OFF } from "../price/swmPriceTypes";
 
 export const defaultAppState: AppState = {
   totalBalance: new TotalBalanceClass(),
@@ -51,6 +52,9 @@ export const defaultAppState: AppState = {
   handleShieldButton: () => {},
   addAddressBookEntry: () => {},
   zecPrice: 0,
+  swmPrice: SWM_PRICE_OFF,
+  showSwmPrice: true,
+  setShowSwmPrice: () => {},
   mixnetView: UNKNOWN_MIXNET_VIEW,
   serverHealth: INITIAL_SERVER_HEALTH,
   rotateServer: () => {},

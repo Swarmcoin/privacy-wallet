@@ -46,6 +46,8 @@ const settings = require("electron-settings");
 const storage = require("electron-json-storage");
 const { createServerRegistry } = require("./serverRegistry");
 const { isOpenablePaymentUri } = require("./paymentUri");
+const { pathToFileURL } = require("url");
+const { SWM_LISTING_URLS, fetchSwmPrice, isAppFrameUrl } = require("./swmPrice");
 
 const STORAGE_KEY = "wallets";
 const isDev = !app.isPackaged;
@@ -1549,6 +1551,49 @@ ipcMain.handle("swapHttp:request", async (_e, request) => {
   } finally {
     clearTimeout(timer);
   }
+});
+
+// The SWM price (specs/PRICE-DISPLAY.md), from the SWARM price service only.
+//
+// The URL, the single allowed host (wallet.swarm.green), the 8 s deadline, the
+// 64 KiB cap, the refusal of redirects and the check of the JSON all live in
+// ./swmPrice.js; the renderer passes no argument and receives only the
+// validated fields. See that file for why the wallet asks a SWARM relay and
+// never an aggregator.
+//
+// These two are the first handlers in this file that check who is asking.
+// `event.senderFrame.url` has to be this application's own page — the dev
+// server in development, the packaged build/index.html otherwise — before
+// anything is fetched or opened. The preload's channel list already keeps
+// other pages from reaching ipcMain through `electronAPI`; this is the check
+// on this side of the bridge, so a frame that somehow got hold of ipcRenderer
+// still cannot use the wallet as a network client. The older handlers above
+// predate it and are unchanged.
+const SWM_PRICE_APP_URL = isDev
+  ? "http://localhost:3000"
+  : pathToFileURL(path.join(__dirname, "../build/index.html")).href;
+const SWM_PRICE_CASE_INSENSITIVE_PATHS = process.platform === "win32" || process.platform === "darwin";
+
+function fromThisAppsPage(event) {
+  const frameUrl = event?.senderFrame?.url;
+  const ok = isAppFrameUrl(frameUrl, SWM_PRICE_APP_URL, { caseInsensitive: SWM_PRICE_CASE_INSENSITIVE_PATHS });
+  if (!ok) console.warn(`price: refused an IPC call from ${String(frameUrl).slice(0, 120)}`);
+  return ok;
+}
+
+ipcMain.handle("price:swm", async (event) => {
+  if (!fromThisAppsPage(event)) return { ok: false, reason: "refused" };
+  return fetchSwmPrice(fetch);
+});
+
+// Opens the pool's listing page in the system browser. The renderer names
+// which listing, never a URL; both URLs are constants in ./swmPrice.js.
+ipcMain.handle("price:open-listing", async (event, which) => {
+  if (!fromThisAppsPage(event)) return { ok: false, reason: "refused" };
+  const url = Object.prototype.hasOwnProperty.call(SWM_LISTING_URLS, which) ? SWM_LISTING_URLS[which] : null;
+  if (!url) return { ok: false, reason: "refused" };
+  await shell.openExternal(url);
+  return { ok: true };
 });
 
 // Hosts SwapKit named as logo sources in its own catalog, which is the only

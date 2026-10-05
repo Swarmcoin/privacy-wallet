@@ -78,3 +78,10 @@ export const fs = {
 };
 
 export const isSandboxed = false;
+
+// The SWM price channels. Answers "unreachable" unless a test says otherwise,
+// which is what a wallet sees when the relay is down.
+export const price = {
+  swm: jest.fn(async () => ({ ok: false, reason: "network" })),
+  openListing: jest.fn(async () => ({ ok: true })),
+};
