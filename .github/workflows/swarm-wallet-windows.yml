@@ -38,19 +38,20 @@ jobs:
       CI: "true"
     steps:
       - uses: actions/checkout@v4
-      # The Swarm-Official organisation is suspended. Its SDK, protocol and
-      # zebra forks are mirrored at the same revisions under louisinthesubway;
-      # git rewrites the URLs so native/Cargo.lock stays byte-identical
-      # (CARGO_NET_GIT_FETCH_WITH_CLI is set).
+      # The Swarm-Official account is gone. native/Cargo.toml and Cargo.lock
+      # name the SDK, protocol and zebra forks under Swarmcoin, at the same
+      # revisions. This rewrite stays as a safety net for any Swarm-Official
+      # URL still named inside a pinned dependency's own sources
+      # (CARGO_NET_GIT_FETCH_WITH_CLI is set, so cargo's git obeys it).
       - name: Fetch the SWARM forks from their mirrors
-        run: git config --global url."https://github.com/louisinthesubway/".insteadOf "https://github.com/Swarm-Official/"
+        run: git config --global url."https://github.com/Swarmcoin/".insteadOf "https://github.com/Swarm-Official/"
       # Read-only, and only so the pin check can see which network the pinned
       # SDK targets and so its licence ships with the binary. Cargo fetches its
       # own copy of the same revision for the compile.
       - name: Check out the pinned SDK revision
         uses: actions/checkout@v4
         with:
-          repository: louisinthesubway/privacy-zingolib
+          repository: Swarmcoin/privacy-zingolib
           ref: c7464d2ec40a5d619500a9ebee76ac4c39775baa
           path: sdk-source
       - uses: actions/setup-node@v4

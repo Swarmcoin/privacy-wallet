@@ -35,7 +35,7 @@ The same as `.github/workflows/swarm-wallet-unix.yml`:
 | Rust | 1.96.0 via `RUSTUP_TOOLCHAIN`, targets `aarch64-apple-darwin` and `x86_64-apple-darwin` |
 | `RUSTFLAGS` | `--cfg zcash_unstable="nu6.3"` |
 | Cargo | `CARGO_PROFILE_RELEASE_DEBUG=0`, `CARGO_PROFILE_RELEASE_LTO=false`, `CARGO_INCREMENTAL=0`, `CARGO_NET_GIT_FETCH_WITH_CLI=true` |
-| SDK | `Swarm-Official/privacy-zingolib` at `c7464d2ec40a5d619500a9ebee76ac4c39775baa` (tag `swarm-sdk-mainnet-1`), checked out into `sdk-source`; the revision `native/Cargo.lock` and `sdk/swarm-sdk-pin.json` name |
+| SDK | `Swarmcoin/privacy-zingolib` at `c7464d2ec40a5d619500a9ebee76ac4c39775baa` (tag `swarm-sdk-mainnet-1`), checked out into `sdk-source`; the revision `native/Cargo.lock` and `sdk/swarm-sdk-pin.json` name |
 | Other | `protoc` (`brew install protobuf`), Xcode command-line tools, Rosetta 2 for the Intel smoke test |
 
 ## Prerequisites on the Mac
@@ -58,10 +58,10 @@ The same as `.github/workflows/swarm-wallet-unix.yml`:
 From a fresh clone at the release commit:
 
 ```sh
-git clone https://github.com/Swarm-Official/privacy-wallet.git swarm-wallet
+git clone https://github.com/Swarmcoin/privacy-wallet.git swarm-wallet
 cd swarm-wallet
 git checkout --detach <release commit>
-git clone https://github.com/Swarm-Official/privacy-zingolib.git sdk-source
+git clone https://github.com/Swarmcoin/privacy-zingolib.git sdk-source
 git -C sdk-source checkout --detach c7464d2ec40a5d619500a9ebee76ac4c39775baa
 export RUSTUP_TOOLCHAIN=1.96.0
 export RUSTFLAGS='--cfg zcash_unstable="nu6.3"'

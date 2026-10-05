@@ -44,7 +44,7 @@ Public server discovery, the ZEC price fetch and the mixnet-price notice (the SW
 
 The `SWARM wallet Windows test build` workflow produces a portable, unsigned Windows x64 ZIP. It does not publish a release and does not sign the executable.
 
-The SDK is a pinned Git revision of `Swarm-Official/privacy-zingolib` in `native/Cargo.toml` and `native/Cargo.lock`, not a patch snapshot: the previous mechanism reconstructed the SDK from a patch applied to an upstream base, and there is nothing left to reconstruct now that the fork has its own branch. Everything cheap that can refuse the build — packaging configuration, the SDK pin, the lockfile, types, the network and server-selection tests — runs before the hour of compilation, not after it.
+The SDK is a pinned Git revision of `Swarmcoin/privacy-zingolib` in `native/Cargo.toml` and `native/Cargo.lock`, not a patch snapshot: the previous mechanism reconstructed the SDK from a patch applied to an upstream base, and there is nothing left to reconstruct now that the fork has its own branch. Everything cheap that can refuse the build — packaging configuration, the SDK pin, the lockfile, types, the network and server-selection tests — runs before the hour of compilation, not after it.
 
 The artifact carries the wallet source commit, `native/Cargo.lock`, the ZIP's checksum and `sdk-integration.json`, which names the exact SDK commit and the genesis that was verified at build time.
 

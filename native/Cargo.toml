@@ -73,7 +73,7 @@ crate-type = ["cdylib"]
 # reconstructed from a patch snapshot.
 #
 # c7464d2ec40a5d619500a9ebee76ac4c39775baa is the tag `swarm-sdk-mainnet-1` in
-# Swarm-Official/privacy-zingolib (pushed; one commit above d9f1a5b8, the pin
+# Swarmcoin/privacy-zingolib (pushed; one commit above d9f1a5b8, the pin
 # before this one). It is where `ChainType::SwarmMainnet(SwarmMainnetGenesis)`
 # and the SwarmMain network type come from, and it adds two things the mainnet
 # indexer already serves: `LightdInfo.genesis_hash` (proto field 19, through
@@ -85,15 +85,15 @@ crate-type = ["cdylib"]
 # recorded in sdk/swarm-sdk-pin.json, and scripts/check-swarm-sdk-pin.js checks
 # this file, the lockfile and the pinned SDK's own genesis constant against it
 # before anything is compiled.
-zingolib = { features = ["nym", "perspective"], git = "https://github.com/Swarm-Official/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
-pepper-sync = { git = "https://github.com/Swarm-Official/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
+zingolib = { features = ["nym", "perspective"], git = "https://github.com/Swarmcoin/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
+pepper-sync = { git = "https://github.com/Swarmcoin/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
 # `globally-public-transparent` is what the Treasury page's fund balances are
 # read through: `TransparentIndexer::get_address_utxos`, the lightwalletd call
 # every Zaino serves. The feature is named after the fact that transparent
 # data is public and that asking for it tells the indexer which addresses you
 # care about; a treasury fund's P2SH address is published in the genesis
 # manifest, so there is nothing here to leak that is not already printed.
-zingo-netutils = { features = ["globally-public-transparent"], git = "https://github.com/Swarm-Official/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
+zingo-netutils = { features = ["globally-public-transparent"], git = "https://github.com/Swarmcoin/privacy-zingolib", rev = "c7464d2ec40a5d619500a9ebee76ac4c39775baa" }
 
 # These must match zingolib's workspace versions exactly, not merely be
 # semver-compatible with them. Two versions of `zcash_keys` resolve to two
@@ -181,7 +181,7 @@ swarm-wallet-treasury-core = { path = "treasury-core" }
 # decides both the hundred-confirmation maturity rule the page shows and the
 # `is_coinbase` the proposal records. The same revision the custody tool is
 # pinned at, so cargo resolves one checkout.
-zebra-chain = { git = "https://github.com/Swarm-Official/privacy-zebra", rev = "01b9da3de144a6deb4dd631396cbbc3bfb7c6d81" }
+zebra-chain = { git = "https://github.com/Swarmcoin/privacy-zebra", rev = "01b9da3de144a6deb4dd631396cbbc3bfb7c6d81" }
 
 # Derive, for the two structs the UTXO answer is serialised from.
 serde = { version = "1", features = ["derive"] }
@@ -232,7 +232,7 @@ zcash_protocol = { path = "vendor/zcash_protocol" }
 zcash_primitives = { path = "vendor/zcash_primitives" }
 zcash_transparent = { path = "vendor/zcash_transparent" }
 time = { git = "https://github.com/time-rs/time", tag = "v0.3.47" }
-lightwallet-protocol = { git = "https://github.com/Swarm-Official/privacy-lightwallet-protocol-rust", rev = "c9c13e46bbea726f904f12cb18cd85e57ff46d35" }
+lightwallet-protocol = { git = "https://github.com/Swarmcoin/privacy-lightwallet-protocol-rust", rev = "c9c13e46bbea726f904f12cb18cd85e57ff46d35" }
 
 [profile.release]
 debug = 1

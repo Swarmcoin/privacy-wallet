@@ -11,7 +11,7 @@ license = "MIT"
 # by revision. Nothing here adds cryptography: every signature, proof, hash
 # and script check comes from this crate, at the revision the ceremony was
 # rehearsed at.
-swarm-treasury = { git = "https://github.com/Swarm-Official/privacy-zebra", rev = "01b9da3de144a6deb4dd631396cbbc3bfb7c6d81" }
+swarm-treasury = { git = "https://github.com/Swarmcoin/privacy-zebra", rev = "01b9da3de144a6deb4dd631396cbbc3bfb7c6d81" }
 
 # The same authenticated passphrase format (`age`, scrypt recipient) the
 # signer backups use, now also for the relay blobs. Default features only —
