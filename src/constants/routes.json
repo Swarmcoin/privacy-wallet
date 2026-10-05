@@ -12,5 +12,6 @@
   "MIGRATION": "/migration",
   "SWAP": "/swap",
   "SETTINGS": "/settings",
-  "TREASURY": "/treasury"
+  "TREASURY": "/treasury",
+  "PRICE": "/price"
 }

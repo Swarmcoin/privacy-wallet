@@ -1,11 +1,13 @@
 import React, { useEffect, useId, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import routes from "../../../constants/routes.json";
 import styles from "../Swarm.module.css";
 import { SwarmIcon } from "../SwarmIcons";
 import markUrl from "../../../assets/img/swarm-mark.svg";
-import { price as priceBridge } from "../../../electronBridge";
 import { priceIsDimmed, priceIsShown } from "../../../price/swmPrice";
 import { SOURCE_LABEL, formatAge, formatChange, formatClock, formatUsdPrice } from "../../../price/swmPriceFormat";
 import type { SwmPriceState } from "../../../price/swmPriceTypes";
+import { SWM_PRICE_FOOTNOTE } from "../../../price/swmPool";
 
 /**
  * The SWM price card on the Overview (specs/PRICE-DISPLAY.md §3, item 2).
@@ -16,12 +18,11 @@ import type { SwmPriceState } from "../../../price/swmPriceTypes";
  * under reduced motion), and nothing that reads as advice. The pool behind
  * the number is small, so the card says so and calls it indicative.
  *
- * The whole card opens the pool on DexScreener in the system browser. Main
- * holds that URL; this asks for "dexscreener" and nothing else.
+ * The whole card opens the price page (/price), where the chart, the pool's
+ * figures and the links to DexScreener and GeckoTerminal are.
  */
 
-export const SWM_PRICE_FOOTNOTE =
-  "Indicative price from the SWM/ETH pool on Base. The pool is small; small trades move it. Not a quote.";
+export { SWM_PRICE_FOOTNOTE };
 
 /** The clock the "updated 12 s ago" line reads, advanced every ten seconds. */
 function useNow(intervalMs: number, resetOn: unknown): number {
@@ -85,6 +86,7 @@ const Sparkline: React.FC<{ points: number[] }> = ({ points }) => {
 };
 
 export const SwmPriceCard: React.FC<{ price: SwmPriceState }> = ({ price }) => {
+  const navigate = useNavigate();
   const now = useNow(10_000, price.fetchedAtMs);
   if (price.status === "off") return null;
 
@@ -116,16 +118,16 @@ export const SwmPriceCard: React.FC<{ price: SwmPriceState }> = ({ price }) => {
     .filter(Boolean)
     .join(" · ");
 
-  const open = () => {
-    void priceBridge.openListing("dexscreener");
-  };
+  // The card opens the price page; the listing links live there now
+  // (specs/PRICE-DISPLAY.md §6).
+  const open = () => navigate(routes.PRICE);
 
   return (
     <button
       type="button"
       className={`${styles.priceCard} ${dim ? styles.priceCardDim : ""}`}
       onClick={open}
-      title="Open the SWM/ETH pool on DexScreener"
+      title="Open the SWM price page"
       data-status={price.status}
     >
       <span className={styles.priceHead}>
@@ -169,10 +171,10 @@ export const SwmPriceCard: React.FC<{ price: SwmPriceState }> = ({ price }) => {
           : price.pending
             ? "From the SWARM price service"
             : "The SWARM price service is not answering. Trying again every minute."}
-        <SwarmIcon name="external" size={11} />
+        <SwarmIcon name="chart" size={12} />
       </span>
       <span className={styles.srOnly}>
-        {freshnessForReaders} {SWM_PRICE_FOOTNOTE} Opens the pool on DexScreener in your browser.
+        {freshnessForReaders} {SWM_PRICE_FOOTNOTE} Opens the SWM price page.
       </span>
     </button>
   );

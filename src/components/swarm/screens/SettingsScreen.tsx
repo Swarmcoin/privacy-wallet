@@ -13,6 +13,7 @@ import routes from "../../../constants/routes.json";
 import APP_VERSION, { UPSTREAM_VERSION } from "../../../version";
 import { SWARM_COINS_ARE_TEST_COINS, SWARM_NETWORK_LABEL, SWARM_TICKER } from "../../../utils/swarmNetwork";
 import { ADD_NEW, RESTORE, chooseWallet } from "../../walletBar/walletSwitching";
+import { SWM_PRICE_SETTING_HELP, SWM_PRICE_SETTING_LABEL } from "../../../price/swmPool";
 
 /**
  * Settings: what is true of this wallet, and the handful of things you can
@@ -33,10 +34,8 @@ type Row =
   | { kind: "action"; k: string; d: string; action: string; onClick: () => void; disabled?: boolean }
   | { kind: "toggle"; k: string; d: string; on: boolean; onChange: (on: boolean) => void };
 
-/** Settings → Price: the help text is specs/PRICE-DISPLAY.md §2.2, word for word. */
-export const SWM_PRICE_SETTING_LABEL = "Show SWM price (USD)";
-export const SWM_PRICE_SETTING_HELP =
-  "The price comes from the SWARM price service (wallet.swarm.green), which reads the SWM/ETH pool on Base from GeckoTerminal and DexScreener. Your addresses and balances are never sent. Switch this off and the wallet makes no price requests.";
+// Settings → Price: the help text is specs/PRICE-DISPLAY.md §2.2, word for word.
+export { SWM_PRICE_SETTING_LABEL, SWM_PRICE_SETTING_HELP };
 
 type Group = { title: string; icon: SwarmIconName; rows: Row[] };
 

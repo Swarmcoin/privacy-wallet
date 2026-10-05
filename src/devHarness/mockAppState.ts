@@ -23,7 +23,8 @@ import { PerformanceLevelEnum } from "../components/appstate/enums/PerformanceLe
 import { AddressScopeEnum } from "../components/appstate/enums/AddressScopeEnum";
 import { UNKNOWN_MIXNET_VIEW } from "../rpc/components/mixnetPresenter";
 import { INITIAL_SERVER_HEALTH } from "../rpc/components/serverHealth";
-import { SWM_PRICE_OFF, SwmPriceState } from "../price/swmPriceTypes";
+import { SWM_PRICE_OFF, SwmPriceIpcReading, SwmPriceState } from "../price/swmPriceTypes";
+import { parseDetails, stateFor, statusFor } from "../price/swmPrice";
 
 /**
  * Invented wallet state, for looking at the screens without a wallet.
@@ -320,21 +321,55 @@ SCENARIOS.push({
  */
 export function mockSwmPrice(kind: string | null): SwmPriceState | null {
   if (!kind) return null;
+  // 48 hourly and 30 daily closes shaped like the pool's real history: flat
+  // and thin, then the climb of 2026-10-04/05. Invented, deterministic.
+  const wave = (n: number, from: number, to: number, wobble: number) =>
+    Array.from({ length: n }, (_, i) => {
+      const t = i / (n - 1);
+      const base = from + (to - from) * t * t;
+      return Number((base * (1 + wobble * Math.sin(i * 1.7) * (1 - t))).toFixed(4));
+    });
+  const hourly = wave(48, 0.5259, 0.8411, 0.035);
+  hourly[47] = 0.8411;
+  const daily = wave(30, 0.31, 0.8411, 0.08);
+  daily[29] = 0.8411;
+  const hourStart = Math.floor(now / 3600) * 3600 - 47 * 3600;
+  const dayStart = Math.floor(now / 86400) * 86400 - 29 * 86400;
   const fresh: SwmPriceState = {
     priceUsd: "0.84114343",
     changePct24h: 36.72,
-    sparklineUsd: [0.5259, 0.5412, 0.573, 0.5688, 0.6361, 0.629, 0.6533, 0.7104, 0.7537, 0.748, 0.8411],
+    sparklineUsd: hourly,
     source: "geckoterminal",
     generatedUnix: now - 12,
     fetchedAtMs: Date.now() - 12_000,
     status: "fresh",
     pending: false,
+    details: {
+      priceEth: "0.000195976",
+      changePct1h: 0,
+      changePct6h: 28.75,
+      hourlyFromUnix: hourStart,
+      dailyUsd: daily,
+      dailyFromUnix: dayStart,
+      transactions24h: { buys: 9, sells: 0 },
+      liquidityUsd: 3761.34,
+      volume24hUsd: 378.11,
+      fdvUsd: 8411.43,
+      poolFeePct: 0.9,
+      poolCreatedUnix: 1791100000,
+      sources: [
+        { id: "geckoterminal", ok: true, priceUsd: "0.84114343", fetchedUnix: now - 30 },
+        { id: "dexscreener", ok: false, priceUsd: "0.8602", fetchedUnix: now - 400 },
+      ],
+    },
   };
   switch (kind) {
     case "fresh":
       return fresh;
+    case "nodaily":
+      return fresh.details ? { ...fresh, details: { ...fresh.details, dailyUsd: null, dailyFromUnix: null } } : fresh;
     case "down":
-      return { ...fresh, changePct24h: -3.24, sparklineUsd: [...(fresh.sparklineUsd ?? [])].reverse() };
+      return { ...fresh, changePct24h: -3.24, sparklineUsd: [...hourly].reverse() };
     case "ageing":
       return { ...fresh, status: "ageing", fetchedAtMs: Date.now() - 12 * 60_000 };
     case "stale":
@@ -347,6 +382,32 @@ export function mockSwmPrice(kind: string | null): SwmPriceState | null {
       return SWM_PRICE_OFF;
     default:
       return null;
+  }
+}
+
+/**
+ * `?priceJson=<the answer of price:swm>`: a real reading, for a screenshot
+ * against the live relay. The screenshot script fetches it with the main
+ * process's own `fetchSwmPrice` (public/swmPrice.js) and hands the validated
+ * result over in the URL; this turns it into state the way the poller does.
+ */
+export function swmPriceFromIpc(json: string | null): SwmPriceState | null {
+  if (!json) return null;
+  try {
+    const p = JSON.parse(json) as SwmPriceIpcReading;
+    const reading = {
+      priceUsd: p.priceUsd,
+      changePct24h: p.changePct24h,
+      sparklineUsd: p.sparklineUsd,
+      source: p.source,
+      generatedUnix: p.generatedUnix,
+      fetchedAtMs: Date.now(),
+      relayStale: p.stale,
+      details: parseDetails(p.details),
+    };
+    return stateFor(reading, statusFor(reading, Date.now()));
+  } catch {
+    return null;
   }
 }
 

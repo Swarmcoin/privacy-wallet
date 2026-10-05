@@ -80,13 +80,16 @@ export function formatUsdPrice(priceUsd: string | null | undefined): string | nu
 
 export type ChangeTone = "up" | "down" | "flat";
 
-/** "▲ 36.7 % 24h", "▼ 3.2 % 24h", "0.0 % 24h". */
-export function formatChange(pct: number | null | undefined): { text: string; tone: ChangeTone } | null {
+/** "▲ 36.7 % 24h", "▼ 3.2 % 24h", "0.0 % 24h"; the window is "1h" or "6h" on the page. */
+export function formatChange(
+  pct: number | null | undefined,
+  window = "24h",
+): { text: string; tone: ChangeTone } | null {
   if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
   const rounded = Math.round(Math.abs(pct) * 10) / 10;
-  if (rounded === 0) return { text: "0.0 % 24h", tone: "flat" };
+  if (rounded === 0) return { text: `0.0 % ${window}`, tone: "flat" };
   const digits = rounded.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  return pct > 0 ? { text: `▲ ${digits} % 24h`, tone: "up" } : { text: `▼ ${digits} % 24h`, tone: "down" };
+  return pct > 0 ? { text: `▲ ${digits} % ${window}`, tone: "up" } : { text: `▼ ${digits} % ${window}`, tone: "down" };
 }
 
 /** "18:07", local time, 24-hour. */
@@ -109,3 +112,36 @@ export const SOURCE_LABEL: Record<SwmPriceSource, string> = {
   geckoterminal: "GeckoTerminal",
   dexscreener: "DexScreener",
 };
+
+/** The price in ETH, three significant digits: "0.000196 ETH". */
+export function formatEthPrice(priceEth: string | null | undefined): string | null {
+  if (parsePriceUnits(priceEth) === null) return null;
+  const value = Number(priceEth);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (value >= 1000) return `${group(Math.round(value).toString())} ETH`;
+  const text = value.toPrecision(3);
+  return /e/i.test(text) ? `${value.toFixed(12).replace(/0+$/, "")} ETH` : `${text} ETH`;
+}
+
+/** A dollar figure from the pool's statistics: "$3,770.24", or "$1,234,567" from 100,000 up. */
+export function formatUsdAmount(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  if (value >= 100_000) return `$${group(Math.round(value).toString())}`;
+  const [whole, fraction] = value.toFixed(2).split(".");
+  return `$${group(whole)}.${fraction}`;
+}
+
+/** "0xf1e0…4599": the first four and last four hex digits. */
+export function shortHex(value: string): string {
+  return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A chart point's time: "Oct 5, 14:00" (local) for an hour, "Oct 5" (UTC) for a day. */
+export function formatPointTime(unix: number, daily: boolean): string {
+  const d = new Date(unix * 1000);
+  // A daily close belongs to a UTC day, which a local date could move by one.
+  if (daily) return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${formatClock(unix * 1000)}`;
+}

@@ -42,6 +42,7 @@ const SWM_LISTING_URLS = Object.freeze({
 // the shape and are refused separately, because a price of zero is not a price.
 const DECIMAL_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,18})?$/;
 const SPARKLINE_MAX_POINTS = 48;
+const DAILY_MAX_POINTS = 30;
 const KNOWN_SOURCES = new Set(["geckoterminal", "dexscreener"]);
 
 function isPositiveDecimal(value) {
@@ -50,6 +51,78 @@ function isPositiveDecimal(value) {
 
 function finiteOrNull(value, min, max) {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max ? value : null;
+}
+
+const isObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+
+function unixOrNull(value) {
+  return Number.isInteger(value) && value >= 1_000_000_000 && value <= 10_000_000_000 ? value : null;
+}
+
+function countOrNull(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 100_000_000 ? value : null;
+}
+
+/** A series of positive prices, oldest first: the last `max` of them, or null. */
+function seriesOrNull(value, max) {
+  if (!Array.isArray(value)) return null;
+  const points = value.slice(-max);
+  return points.length >= 2 && points.every((p) => typeof p === "number" && Number.isFinite(p) && p > 0)
+    ? points
+    : null;
+}
+
+const MAX_USD = 1e15;
+
+/**
+ * The page's fields (specs/PRICE-DISPLAY.md §6.1), every one optional. Each
+ * is type-checked on its own and becomes null when it does not pass; none of
+ * them can fail the reading. The pool id and the token contract the relay
+ * names are not passed on: the wallet shows its own constants for those, so
+ * an address a person copies never comes from the network.
+ */
+function readDetails(body) {
+  const change = isObject(body.change_pct) ? body.change_pct : {};
+  const pool = isObject(body.pool) ? body.pool : {};
+  const tx = isObject(body.transactions_24h) ? body.transactions_24h : null;
+  const buys = tx ? countOrNull(tx.buys) : null;
+  const sells = tx ? countOrNull(tx.sells) : null;
+  const sources = Array.isArray(body.sources)
+    ? body.sources
+        .filter((entry) => isObject(entry) && KNOWN_SOURCES.has(entry.id))
+        .slice(0, 4)
+        .map((entry) => ({
+          id: entry.id,
+          ok: entry.ok === true,
+          priceUsd: isPositiveDecimal(entry.price_usd) ? entry.price_usd : null,
+          fetchedUnix: unixOrNull(entry.fetched_unix),
+        }))
+    : [];
+  const daily = seriesOrNull(body.daily_usd, DAILY_MAX_POINTS);
+  // When a series is cut to its last points, its first time moves with it.
+  const shift = (from, series, max, step) => {
+    const start = unixOrNull(from);
+    if (start === null || !Array.isArray(series)) return null;
+    return start + Math.max(0, series.length - max) * step;
+  };
+  const hourlyFrom = seriesOrNull(body.sparkline_usd, SPARKLINE_MAX_POINTS)
+    ? shift(body.hourly_from_unix, body.sparkline_usd, SPARKLINE_MAX_POINTS, 3600)
+    : null;
+  return {
+    priceEth: isPositiveDecimal(body.price_eth) ? body.price_eth : null,
+    changePct1h: finiteOrNull(change.h1, -100, 1_000_000),
+    changePct6h: finiteOrNull(change.h6, -100, 1_000_000),
+    hourlyFromUnix: hourlyFrom,
+    dailyUsd: daily,
+    dailyFromUnix: daily ? shift(body.daily_from_unix, body.daily_usd, DAILY_MAX_POINTS, 86400) : null,
+    transactions24h: buys !== null && sells !== null ? { buys, sells } : null,
+    liquidityUsd: finiteOrNull(body.liquidity_usd, 0, MAX_USD),
+    volume24hUsd: finiteOrNull(body.volume_24h_usd, 0, MAX_USD),
+    fdvUsd: finiteOrNull(body.fdv_usd, 0, MAX_USD),
+    poolFeePct: finiteOrNull(pool.fee_pct, 0, 100),
+    poolCreatedUnix: unixOrNull(pool.created_unix),
+    sources,
+  };
 }
 
 /**
@@ -79,14 +152,8 @@ function validateSwmPricePayload(body, nowUnix) {
     return { ok: false, reason: "schema" };
   }
 
-  const change = body.change_pct && typeof body.change_pct === "object" ? body.change_pct.h24 : undefined;
-  let sparkline = null;
-  if (Array.isArray(body.sparkline_usd)) {
-    const points = body.sparkline_usd.slice(-SPARKLINE_MAX_POINTS);
-    if (points.length >= 2 && points.every((p) => typeof p === "number" && Number.isFinite(p) && p > 0)) {
-      sparkline = points;
-    }
-  }
+  const change = isObject(body.change_pct) ? body.change_pct.h24 : undefined;
+  const sparkline = seriesOrNull(body.sparkline_usd, SPARKLINE_MAX_POINTS);
 
   return {
     ok: true,
@@ -97,6 +164,7 @@ function validateSwmPricePayload(body, nowUnix) {
       source: KNOWN_SOURCES.has(body.source) ? body.source : null,
       generatedUnix: generated,
       stale: body.stale === true,
+      details: readDetails(body),
     },
   };
 }

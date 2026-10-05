@@ -756,6 +756,388 @@ details[open] > .detailsSummary::before {
   filter: grayscale(1);
 }
 
+/* ------------------------------------------------------- the price page --- */
+
+/* specs/PRICE-DISPLAY.md §6.2. Same look as the card, more room. */
+.pricePage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: none;
+}
+
+.pricePageHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pricePageHead > .panelLink {
+  padding-left: 0;
+}
+
+.pricePageId {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--swarm-text-muted);
+}
+
+.pricePageWhen {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--swarm-text-faint);
+}
+
+.pricePageGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.pricePageMain {
+  padding: 22px 24px 18px;
+  gap: 10px;
+  background: linear-gradient(170deg, rgba(255, 138, 31, 0.08), var(--swarm-surface) 45%);
+  border-color: rgba(255, 138, 31, 0.22);
+  overflow: visible;
+}
+
+.pricePageLine {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.pricePageValue {
+  font-size: 46px;
+  letter-spacing: -0.03em;
+}
+
+.pricePageEth {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--swarm-text-muted);
+  margin-top: -4px;
+}
+
+.pricePageChips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pricePageSide {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.pricePageBalance {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 18px;
+  color: var(--swarm-text);
+}
+
+.pricePageBalanceFiat {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--swarm-text-muted);
+}
+
+.pricePageStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 18px;
+}
+
+.pricePageStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pricePageStatKey {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--swarm-text-faint);
+}
+
+.pricePageStatValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--swarm-text);
+  overflow-wrap: anywhere;
+}
+
+.pricePageRow {
+  cursor: default;
+}
+
+.pricePageRow:hover {
+  background: none;
+}
+
+.pricePageRow > .rowTitle {
+  flex: 1;
+}
+
+.pricePageRowValue {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--swarm-text-soft);
+  min-width: 110px;
+  text-align: right;
+}
+
+.pricePageMark {
+  width: 18px;
+  text-align: center;
+  font-family: var(--font-mono);
+  color: var(--swarm-green);
+}
+
+.pricePageRowOff .rowTitle,
+.pricePageRowOff .pricePageRowValue,
+.pricePageRowOff .pricePageMark {
+  color: var(--swarm-text-dim);
+}
+
+.pricePageNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--swarm-text-soft);
+}
+
+.pricePageNote svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--swarm-honey);
+}
+
+.pricePageSetting {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--swarm-hairline);
+}
+
+/* The chart. */
+.chartBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.chartRanges {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--swarm-hairline);
+  background: var(--swarm-surface-sunken);
+}
+
+.chartRange {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--swarm-text-muted);
+  cursor: pointer;
+}
+
+.chartRange:hover:not(:disabled) {
+  color: var(--swarm-text);
+}
+
+.chartRangeActive {
+  background: var(--swarm-orange-wash);
+  color: var(--swarm-orange);
+}
+
+.chartRange:disabled {
+  color: var(--swarm-text-disabled);
+  cursor: default;
+}
+
+.chartFrame {
+  position: relative;
+  padding-right: 78px;
+}
+
+.chartPlot {
+  position: relative;
+  height: 200px;
+  outline-offset: 6px;
+  cursor: crosshair;
+}
+
+.chartSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chartDim {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.chartGuide {
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.chartLine {
+  stroke: var(--swarm-orange);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chartLabel {
+  position: absolute;
+  left: 0;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(16, 14, 12, 0.72);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--swarm-text-faint);
+  pointer-events: none;
+}
+
+.chartLabelMax {
+  top: 2px;
+}
+
+.chartLabelMin {
+  bottom: 2px;
+}
+
+.chartLatest {
+  position: absolute;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--swarm-orange-edge);
+  background: var(--swarm-orange-wash);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--swarm-orange);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.chartEndDot,
+.chartCursorDot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--swarm-orange);
+  box-shadow: 0 0 10px var(--swarm-orange-glow);
+  pointer-events: none;
+}
+
+.chartCursorDot {
+  background: var(--swarm-text);
+  box-shadow: 0 0 0 3px rgba(255, 138, 31, 0.35);
+}
+
+.chartCursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.chartReadout {
+  position: absolute;
+  top: 6px;
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--swarm-hairline-strong);
+  background: #1f1a15;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--swarm-text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.chartReadout strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--swarm-text);
+}
+
+.chartReadoutLeft {
+  transform: translateX(calc(-100% - 20px));
+}
+
+.chartTimes {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--swarm-text-faint);
+}
+
+.chartEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  border-radius: var(--radius-m);
+  border: 1px dashed var(--swarm-hairline);
+  font-size: 12.5px;
+  color: var(--swarm-text-faint);
+}
+
+@media (max-width: 1080px) {
+  .pricePageGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Under the amount on Send. */
 .fiatNote {
   font-family: var(--font-mono);

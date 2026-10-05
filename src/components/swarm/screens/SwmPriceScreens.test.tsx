@@ -46,6 +46,7 @@ const FRESH: SwmPriceState = {
   fetchedAtMs: Date.now(),
   status: "fresh",
   pending: false,
+  details: null,
 };
 
 function renderWith(ui: React.ReactElement, state: Partial<AppState>, hidden = false) {

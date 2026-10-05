@@ -165,7 +165,7 @@ jobs:
       # freshness rule and poller, and the screens that draw it. See
       # specs/PRICE-DISPLAY.md and docs/swap-privacy.md, "The SWM price".
       - name: Check the SWM price display
-        run: node scripts/test.js --watchAll=false --runInBand src/price src/components/swarm/screens/OverviewScreen.test.tsx src/components/swarm/screens/SwmPriceScreens.test.tsx src/mainProcessScope.test.ts
+        run: node scripts/test.js --watchAll=false --runInBand src/price src/components/swarm/screens/OverviewScreen.test.tsx src/components/swarm/screens/SwmPriceScreens.test.tsx src/components/swarm/screens/PriceScreen.test.tsx src/components/swarm/SwarmShell.test.tsx src/mainProcessScope.test.ts
       - name: Build the pinned wallet SDK adapter
         run: yarn ${{ matrix.platform == 'linux' && 'neon' || (matrix.arch == 'arm64' && 'neon-mac-arm64' || 'neon-mac-x64') }}
       # The addon's own unit tests (parse_address against the SWARM chains, the

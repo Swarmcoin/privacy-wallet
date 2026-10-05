@@ -105,6 +105,7 @@ describe("the relay's answer", () => {
         source: "geckoterminal",
         generatedUnix: 1791223633,
         stale: false,
+        details: expect.any(Object),
       },
     });
   });
@@ -304,5 +305,115 @@ describe("the handlers in electron.js", () => {
     const body = source.slice(at, source.indexOf("});", at));
     expect(body).toContain("SWM_LISTING_URLS");
     expect(body).not.toMatch(/openExternal\(which\)/);
+  });
+});
+
+describe("the price page's fields (§6.1)", () => {
+  const PAGE_BODY = {
+    ...RELAY_BODY,
+    hourly_from_unix: 1791054000,
+    daily_usd: Array.from({ length: 30 }, (_, i) => 0.3 + i / 50),
+    daily_from_unix: 1788739200,
+    transactions_24h: { buys: 9, sells: 0 },
+    pool: { ...RELAY_BODY.pool, fee_pct: 0.9, created_unix: 1791100000 },
+  };
+
+  it("passes every one through after checking its type", () => {
+    const result = validateSwmPricePayload(PAGE_BODY, NOW);
+    expect(result.ok).toBe(true);
+    expect(result.price.details).toEqual({
+      priceEth: "0.000195976",
+      changePct1h: 0,
+      changePct6h: 28.75,
+      hourlyFromUnix: 1791054000,
+      dailyUsd: PAGE_BODY.daily_usd,
+      dailyFromUnix: 1788739200,
+      transactions24h: { buys: 9, sells: 0 },
+      liquidityUsd: 3761.34,
+      volume24hUsd: 378.11,
+      fdvUsd: 8411.43,
+      poolFeePct: 0.9,
+      poolCreatedUnix: 1791100000,
+      sources: [
+        { id: "geckoterminal", ok: true, priceUsd: "0.84114343", fetchedUnix: 1791223633 },
+        { id: "dexscreener", ok: true, priceUsd: "0.8602", fetchedUnix: 1791223633 },
+      ],
+    });
+  });
+
+  it("never passes on the relay's pool id, token or listing URLs", () => {
+    const text = JSON.stringify(validateSwmPricePayload(PAGE_BODY, NOW));
+    expect(text).not.toContain("0xf1e066d7");
+    expect(text).not.toContain("0xf904C14d");
+    expect(text).not.toContain("https://");
+  });
+
+  it("turns each field of the wrong type into null, and keeps the reading", () => {
+    const result = validateSwmPricePayload(
+      {
+        ...PAGE_BODY,
+        price_eth: 0.000196,
+        change_pct: { h1: "0", h6: null, h24: 36.72 },
+        daily_usd: [0.5, -1, 0.7],
+        daily_from_unix: "yesterday",
+        hourly_from_unix: 12.5,
+        transactions_24h: { buys: -1, sells: 0 },
+        liquidity_usd: "3761",
+        volume_24h_usd: Number.NaN,
+        fdv_usd: -5,
+        pool: { fee_pct: 900, created_unix: "x" },
+        sources: [{ id: "evil", ok: true, price_usd: "1" }, { id: "dexscreener", ok: "yes", price_usd: 0.86 }, "x"],
+      },
+      NOW,
+    );
+    expect(result.ok).toBe(true);
+    expect(result.price.priceUsd).toBe("0.84114343");
+    expect(result.price.details).toEqual({
+      priceEth: null,
+      changePct1h: null,
+      changePct6h: null,
+      hourlyFromUnix: null,
+      dailyUsd: null,
+      dailyFromUnix: null,
+      transactions24h: null,
+      liquidityUsd: null,
+      volume24hUsd: null,
+      fdvUsd: null,
+      poolFeePct: null,
+      poolCreatedUnix: null,
+      sources: [{ id: "dexscreener", ok: false, priceUsd: null, fetchedUnix: null }],
+    });
+  });
+
+  it("moves a series' first time with it when the series is cut to its last points", () => {
+    const result = validateSwmPricePayload(
+      {
+        ...PAGE_BODY,
+        sparkline_usd: Array.from({ length: 50 }, () => 0.8),
+        daily_usd: Array.from({ length: 33 }, () => 0.8),
+      },
+      NOW,
+    );
+    expect(result.price.details.hourlyFromUnix).toBe(1791054000 + 2 * 3600);
+    expect(result.price.details.dailyUsd).toHaveLength(30);
+    expect(result.price.details.dailyFromUnix).toBe(1788739200 + 3 * 86400);
+  });
+
+  it("reads the live relay's answer of 2026-10-05 19:01 UTC, which has no daily series yet", () => {
+    const live = require("./__fixtures__/relay-live-2026-10-05.json");
+    const result = validateSwmPricePayload(live, 1791226900);
+    expect(result.ok).toBe(true);
+    expect(result.price).toMatchObject({ priceUsd: "0.84114343498587", changePct24h: 28.75 });
+    expect(result.price.sparklineUsd).toHaveLength(48);
+    expect(result.price.details).toMatchObject({
+      priceEth: "0.000195976178807639",
+      changePct1h: 0,
+      changePct6h: 24.56,
+      dailyUsd: null,
+      liquidityUsd: 3770.24,
+      transactions24h: null,
+      poolFeePct: null,
+    });
+    expect(result.price.details.sources.map((s) => s.ok)).toEqual([true, true]);
   });
 });

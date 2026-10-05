@@ -11,7 +11,7 @@ import SwarmMark from "../logo/SwarmMark";
 import { ContextApp } from "../../context/ContextAppState";
 import routes from "../../constants/routes.json";
 import APP_VERSION from "../../version";
-import { SWARM_NETWORK_LABEL, SWARM_DEFAULT_SERVER } from "../../utils/swarmNetwork";
+import { SWARM_COINS_ARE_TEST_COINS, SWARM_NETWORK_LABEL, SWARM_DEFAULT_SERVER } from "../../utils/swarmNetwork";
 import { TREASURY_ON_BY_DEFAULT } from "../../treasury/treasuryVisibility";
 
 /**
@@ -30,6 +30,7 @@ export type SwarmScreenId =
   | "send"
   | "receive"
   | "activity"
+  | "price"
   | "addresses"
   | "treasury"
   | "settings";
@@ -55,6 +56,8 @@ export const SWARM_NAV: NavEntry[] = [
   { id: "send", label: "Send", icon: "send", route: routes.SEND, kicker: "TRANSFER", title: "Send SWM" },
   { id: "receive", label: "Receive", icon: "receive", route: routes.RECEIVE, kicker: "INCOMING", title: "Receive SWM" },
   { id: "activity", label: "Activity", icon: "activity", route: routes.HISTORY, kicker: "HISTORY", title: "Activity" },
+  // The SWM price page (specs/PRICE-DISPLAY.md §6). Mainnet builds only.
+  { id: "price", label: "Price", icon: "chart", route: routes.PRICE, kicker: "MARKET", title: "SWM price" },
   {
     id: "addresses",
     label: "Addresses",
@@ -90,8 +93,12 @@ export const SWARM_NAV: NavEntry[] = [
  * about. A testnet build that has been given a testnet policy shows it, which
  * is what `treasuryIsVisible` decides.
  */
-export function visibleNav(treasuryVisible: boolean): NavEntry[] {
-  return SWARM_NAV.filter((entry) => entry.id !== "treasury" || treasuryVisible);
+export function visibleNav(treasuryVisible: boolean, priceVisible = !SWARM_COINS_ARE_TEST_COINS): NavEntry[] {
+  // Price is mainnet-only too: test coins have no price, and a test-coin
+  // build never asks for one.
+  return SWARM_NAV.filter(
+    (entry) => (entry.id !== "treasury" || treasuryVisible) && (entry.id !== "price" || priceVisible),
+  );
 }
 
 export function navForPath(pathname: string): NavEntry {

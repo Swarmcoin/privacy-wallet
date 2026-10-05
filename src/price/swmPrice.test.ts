@@ -9,13 +9,14 @@ import {
   SwmPricePoller,
   SwmPriceReading,
   UNAVAILABLE_MS,
+  parseDetails,
   parseStoredReading,
   priceIsDimmed,
   priceIsShown,
   statusFor,
   swmPriceAllowed,
 } from "./swmPrice";
-import { SWM_PRICE_OFF, SwmPriceIpcResult, SwmPriceState } from "./swmPriceTypes";
+import { EMPTY_SWM_PRICE_DETAILS, SWM_PRICE_OFF, SwmPriceIpcResult, SwmPriceState } from "./swmPriceTypes";
 
 const T0 = 1_791_223_700_000;
 
@@ -27,6 +28,7 @@ const READING: SwmPriceReading = {
   generatedUnix: 1791223633,
   fetchedAtMs: T0,
   relayStale: false,
+  details: EMPTY_SWM_PRICE_DETAILS,
 };
 
 const GOOD: SwmPriceIpcResult = {
@@ -38,6 +40,7 @@ const GOOD: SwmPriceIpcResult = {
     source: "geckoterminal",
     generatedUnix: 1791223633,
     stale: false,
+    details: EMPTY_SWM_PRICE_DETAILS,
   },
 };
 
@@ -273,5 +276,39 @@ describe("the gate", () => {
     ["the wallet is locked", { locked: true }],
   ])("allows none when %s", (_label, change) => {
     expect(swmPriceAllowed({ ...all, ...change })).toBe(false);
+  });
+});
+
+describe("stored page fields", () => {
+  const DETAILS = {
+    priceEth: "0.000195976",
+    changePct1h: 0,
+    changePct6h: 28.75,
+    hourlyFromUnix: 1791054000,
+    dailyUsd: [0.3, 0.5, 0.8411],
+    dailyFromUnix: 1788739200,
+    transactions24h: { buys: 9, sells: 0 },
+    liquidityUsd: 3761.34,
+    volume24hUsd: 378.11,
+    fdvUsd: 8411.43,
+    poolFeePct: 0.9,
+    poolCreatedUnix: 1791100000,
+    sources: [{ id: "geckoterminal" as const, ok: true, priceUsd: "0.84114343", fetchedUnix: 1791223633 }],
+  };
+
+  it("come back from storage as they went in", () => {
+    const back = parseStoredReading(JSON.stringify({ ...READING, details: DETAILS }));
+    expect(back?.details).toEqual(DETAILS);
+  });
+
+  it("come back empty from an entry written before the page existed, or damaged", () => {
+    expect(parseStoredReading(JSON.stringify({ ...READING, details: undefined }))?.details).toEqual(
+      EMPTY_SWM_PRICE_DETAILS,
+    );
+    expect(parseDetails({ ...DETAILS, priceEth: 1, dailyUsd: [1], sources: [{ id: "x" }] })).toMatchObject({
+      priceEth: null,
+      dailyUsd: null,
+      sources: [],
+    });
   });
 });

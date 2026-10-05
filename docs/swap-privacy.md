@@ -158,11 +158,15 @@ Off means no price requests at all and no price anywhere on screen. The
 last good reading is kept in the renderer's local storage so the next start
 can show it, greyed, until a fresh one arrives.
 
-**The listing link.** Clicking the price card opens the pool's page on
-DexScreener in the system browser. That URL is a constant in the main
-process; the renderer names "dexscreener" and nothing else. Opening it is
-the user's own visit to DexScreener, with the browser's own privacy, not a
-request the wallet makes.
+**The price page and its links.** Clicking the price card opens the
+wallet's own price page (rail entry "Price", `/price`), which reads the same
+answer and makes no request of its own. Its "Open on DexScreener" and "Open
+on GeckoTerminal" buttons open the pool's page in the system browser. Both
+URLs are constants in the main process; the renderer names "dexscreener" or
+"geckoterminal" and nothing else. Opening one is the user's own visit to that
+site, with the browser's own privacy, not a request the wallet makes. The
+pool id and token contract the page shows and copies are constants of the
+build, never the relay's copy of them.
 
 **What the number is.** An indicative price from a small pool, which small
 trades move. The card says so, and calls it "not a quote". The dollar values

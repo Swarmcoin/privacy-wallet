@@ -1,5 +1,12 @@
-import type { SwmPriceIpcResult, SwmPriceSource, SwmPriceState, SwmPriceStatus } from "./swmPriceTypes";
-import { SWM_PRICE_OFF } from "./swmPriceTypes";
+import type {
+  SwmPriceDetails,
+  SwmPriceIpcResult,
+  SwmPriceSource,
+  SwmPriceSourceReading,
+  SwmPriceState,
+  SwmPriceStatus,
+} from "./swmPriceTypes";
+import { EMPTY_SWM_PRICE_DETAILS, SWM_PRICE_OFF } from "./swmPriceTypes";
 
 /**
  * The SWM price service on the renderer side: a pure freshness rule and a
@@ -32,6 +39,7 @@ export type SwmPriceReading = {
   generatedUnix: number;
   fetchedAtMs: number;
   relayStale: boolean;
+  details: SwmPriceDetails;
 };
 
 /**
@@ -67,6 +75,7 @@ export function stateFor(reading: SwmPriceReading | null, status: SwmPriceStatus
     fetchedAtMs: reading.fetchedAtMs,
     status,
     pending: false,
+    details: reading.details,
   };
 }
 
@@ -82,6 +91,52 @@ export const SWM_PRICE_STORAGE_KEY = "swarm.swmPrice.last.v1";
 const DECIMAL = /^(0|[1-9]\d{0,11})(\.\d{1,18})?$/;
 const SOURCES: SwmPriceSource[] = ["geckoterminal", "dexscreener"];
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const numOrNull = (v: unknown): number | null => (isNum(v) ? v : null);
+const seriesOrNull = (v: unknown, max: number): number[] | null =>
+  Array.isArray(v) && v.length >= 2 && v.every((p) => isNum(p) && p > 0) ? (v as number[]).slice(-max) : null;
+const decimalOrNull = (v: unknown): string | null =>
+  typeof v === "string" && DECIMAL.test(v) && /[1-9]/.test(v) ? v : null;
+
+/**
+ * The page's fields as stored with a reading, checked again on the way back
+ * in: local storage is not main's validated answer, and a field from an older
+ * or damaged entry becomes null rather than reaching the screen.
+ */
+export function parseDetails(value: unknown): SwmPriceDetails {
+  if (!isRecord(value)) return EMPTY_SWM_PRICE_DETAILS;
+  const tx = isRecord(value.transactions24h) ? value.transactions24h : null;
+  const sources: SwmPriceSourceReading[] = Array.isArray(value.sources)
+    ? value.sources
+        .filter((s): s is Record<string, unknown> => isRecord(s) && SOURCES.includes(s.id as SwmPriceSource))
+        .slice(0, 4)
+        .map((s) => ({
+          id: s.id as SwmPriceSource,
+          ok: s.ok === true,
+          priceUsd: decimalOrNull(s.priceUsd),
+          fetchedUnix: numOrNull(s.fetchedUnix),
+        }))
+    : [];
+  return {
+    priceEth: decimalOrNull(value.priceEth),
+    changePct1h: numOrNull(value.changePct1h),
+    changePct6h: numOrNull(value.changePct6h),
+    hourlyFromUnix: numOrNull(value.hourlyFromUnix),
+    dailyUsd: seriesOrNull(value.dailyUsd, 30),
+    dailyFromUnix: numOrNull(value.dailyFromUnix),
+    transactions24h:
+      tx && isNum(tx.buys) && isNum(tx.sells) && tx.buys >= 0 && tx.sells >= 0
+        ? { buys: tx.buys, sells: tx.sells }
+        : null,
+    liquidityUsd: numOrNull(value.liquidityUsd),
+    volume24hUsd: numOrNull(value.volume24hUsd),
+    fdvUsd: numOrNull(value.fdvUsd),
+    poolFeePct: numOrNull(value.poolFeePct),
+    poolCreatedUnix: numOrNull(value.poolCreatedUnix),
+    sources,
+  };
+}
 
 /** A stored reading, if it still has the shape this version wrote. */
 export function parseStoredReading(text: string | null): SwmPriceReading | null {
@@ -108,6 +163,7 @@ export function parseStoredReading(text: string | null): SwmPriceReading | null 
     generatedUnix: r.generatedUnix,
     fetchedAtMs: r.fetchedAtMs,
     relayStale: r.relayStale === true,
+    details: parseDetails(r.details),
   };
 }
 
@@ -234,6 +290,7 @@ export class SwmPricePoller {
         generatedUnix: p.generatedUnix,
         fetchedAtMs: this.deps.now(),
         relayStale: p.stale,
+        details: p.details ?? EMPTY_SWM_PRICE_DETAILS,
       };
       this.fromCache = false;
       try {

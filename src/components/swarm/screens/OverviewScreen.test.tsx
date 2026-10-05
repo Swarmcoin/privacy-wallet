@@ -5,7 +5,7 @@
  */
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ContextAppProvider, defaultAppState } from "../../../context/ContextAppState";
 import { AppState, TotalBalanceClass } from "../../appstate";
 import SwarmUiContext from "../SwarmUiContext";
@@ -64,6 +64,7 @@ describe("the SWM price", () => {
     fetchedAtMs: Date.now() - 12_000,
     status: "fresh",
     pending: false,
+    details: null,
   };
 
   const balance = Object.assign(new TotalBalanceClass(), {
@@ -110,7 +111,7 @@ describe("the SWM price", () => {
     const at = new Date(2026, 9, 5, 18, 7).getTime();
     renderOverview(withPrice({ ...FRESH, status: "ageing", fetchedAtMs: at }));
     expect(screen.getByText(/as of 18:07/)).toBeInTheDocument();
-    expect(screen.getByTitle("Open the SWM/ETH pool on DexScreener")).toHaveAttribute("data-status", "ageing");
+    expect(screen.getByTitle("Open the SWM price page")).toHaveAttribute("data-status", "ageing");
   });
 
   it("says the price is unavailable after an hour without one", () => {
@@ -120,10 +121,20 @@ describe("the SWM price", () => {
     expect(screen.getByLabelText("Total balance")).not.toHaveTextContent(/USD/);
   });
 
-  it("opens the DexScreener listing through main, naming no URL", () => {
-    renderOverview(withPrice(FRESH));
-    fireEvent.click(screen.getByTitle("Open the SWM/ETH pool on DexScreener"));
-    expect(priceBridge.openListing).toHaveBeenCalledWith("dexscreener");
+  it("opens the price page, and opens nothing outside the app", () => {
+    render(
+      <ContextAppProvider value={withPrice(FRESH)}>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <Routes>
+            <Route path="/dashboard" element={<OverviewScreen />} />
+            <Route path="/price" element={<div>the price page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </ContextAppProvider>,
+    );
+    fireEvent.click(screen.getByTitle("Open the SWM price page"));
+    expect(screen.getByText("the price page")).toBeInTheDocument();
+    expect(priceBridge.openListing).not.toHaveBeenCalled();
   });
 
   it("shows nothing when the setting is off", () => {
@@ -165,6 +176,7 @@ describe("the sparkline", () => {
         fetchedAtMs: Date.now(),
         status: "fresh",
         pending: false,
+        details: null,
       },
     });
     expect(screen.getByTestId("swm-sparkline")).toBeInTheDocument();

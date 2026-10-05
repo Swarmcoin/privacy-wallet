@@ -56,6 +56,7 @@ import { SwarmUiProvider } from "../components/swarm/SwarmUiContext";
 import { OverviewScreen } from "../components/swarm/screens/OverviewScreen";
 import { SettingsScreen } from "../components/swarm/screens/SettingsScreen";
 import { TreasuryScreen } from "../components/swarm/screens/TreasuryScreen";
+import { PriceScreen } from "../components/swarm/screens/PriceScreen";
 import { SendScreen } from "../components/swarm/screens/SendScreen";
 import { ReceiveScreen } from "../components/swarm/screens/ReceiveScreen";
 import { ActivityScreen } from "../components/swarm/screens/ActivityScreen";
@@ -1021,6 +1022,8 @@ const AppRoutes: React.FC = () => {
                     nowhere costs a bug report.
                   */}
                   <Route path={routes.TREASURY} element={<TreasuryScreen />} />
+                  {/* The SWM price page; on a test-coin build it sends the user back to Overview. */}
+                  <Route path={routes.PRICE} element={<PriceScreen />} />
                   <Route
                     path={routes.SEND}
                     element={<SendScreen sendTransaction={runRPCSendTransaction} setSendPageState={setSendPageState} />}

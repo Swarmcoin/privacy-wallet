@@ -8,8 +8,13 @@ Newest first. Each entry says what changed for the person using the wallet.
   price in US dollars beside your balance: the price, the change over 24
   hours, a line of the last two days, where the price comes from and how
   old it is. Your balance is shown in dollars under the total, and Send
-  shows the amount in dollars as you type it. Click the price to open the
-  SWM/ETH pool on DexScreener in your browser.
+  shows the amount in dollars as you type it.
+- **A page for the price.** Click the price, or Price in the sidebar: the
+  price in dollars and ETH, the change over 1, 6 and 24 hours, a chart over
+  24 hours, 48 hours or 30 days that reads out any point you point at, the
+  pool's liquidity, volume and fees, what GeckoTerminal and DexScreener each
+  read, the pool and token addresses to copy, and buttons that open the pool
+  on DexScreener or GeckoTerminal in your browser.
 - **Where the price comes from.** The SWARM price service at
   wallet.swarm.green, which reads the SWM/ETH pool on Base from
   GeckoTerminal and DexScreener. The wallet never asks those sites itself.
