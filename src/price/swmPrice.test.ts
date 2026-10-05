@@ -189,6 +189,14 @@ describe("the poller", () => {
     expect(last(h)).toMatchObject({ priceUsd: "0.84114343", fetchedAtMs: T0 });
   });
 
+  it("says a first request is on its way, then that it failed", async () => {
+    const h = harness([{ ok: false, reason: "network" }]);
+    h.poller.start();
+    expect(last(h)).toMatchObject({ status: "unavailable", pending: true, priceUsd: null });
+    await flush();
+    expect(last(h)).toMatchObject({ status: "unavailable", pending: false });
+  });
+
   it("survives a fetch that throws", async () => {
     const h = harness();
     h.fetchPrice.mockImplementationOnce(async () => {

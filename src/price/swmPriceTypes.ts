@@ -44,6 +44,8 @@ export type SwmPriceState = {
   /** When this machine received the reading (ms since the epoch). */
   fetchedAtMs: number | null;
   status: SwmPriceStatus;
+  /** No reading yet and the first request is on its way: "reading the price". */
+  pending: boolean;
 };
 
 export const SWM_PRICE_OFF: SwmPriceState = Object.freeze({
@@ -54,6 +56,7 @@ export const SWM_PRICE_OFF: SwmPriceState = Object.freeze({
   generatedUnix: null,
   fetchedAtMs: null,
   status: "off",
+  pending: false,
 }) as SwmPriceState;
 
 /** Which listing page the price card may ask main to open. */

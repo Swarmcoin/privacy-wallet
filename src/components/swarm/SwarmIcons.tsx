@@ -38,6 +38,9 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   check: "M4 12.5 9.5 18 20 6.5",
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3",
+  info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5.5M12 7.6v.4",
+  chart: "M4 19h16M5 15l4-4.5 3.5 3L19 6.5",
+  external: "M14 4h6v6M20 4l-8.5 8.5M18 14v5H5V6h5",
 } as const;
 
 export type SwarmIconName = keyof typeof PATHS;

@@ -11,7 +11,7 @@ import LockCodeModal from "../../lockScreen/LockCodeModal";
 import { ipcRenderer } from "../../../electronBridge";
 import routes from "../../../constants/routes.json";
 import APP_VERSION, { UPSTREAM_VERSION } from "../../../version";
-import { SWARM_NETWORK_LABEL, SWARM_TICKER } from "../../../utils/swarmNetwork";
+import { SWARM_COINS_ARE_TEST_COINS, SWARM_NETWORK_LABEL, SWARM_TICKER } from "../../../utils/swarmNetwork";
 import { ADD_NEW, RESTORE, chooseWallet } from "../../walletBar/walletSwitching";
 
 /**
@@ -30,7 +30,13 @@ import { ADD_NEW, RESTORE, chooseWallet } from "../../walletBar/walletSwitching"
 
 type Row =
   | { kind: "value"; k: string; d: string; v: string; tone?: "good" | "warn" }
-  | { kind: "action"; k: string; d: string; action: string; onClick: () => void; disabled?: boolean };
+  | { kind: "action"; k: string; d: string; action: string; onClick: () => void; disabled?: boolean }
+  | { kind: "toggle"; k: string; d: string; on: boolean; onChange: (on: boolean) => void };
+
+/** Settings → Price: the help text is specs/PRICE-DISPLAY.md §2.2, word for word. */
+export const SWM_PRICE_SETTING_LABEL = "Show SWM price (USD)";
+export const SWM_PRICE_SETTING_HELP =
+  "The price comes from the SWARM price service (wallet.swarm.green), which reads the SWM/ETH pool on Base from GeckoTerminal and DexScreener. Your addresses and balances are never sent. Switch this off and the wallet makes no price requests.";
 
 type Group = { title: string; icon: SwarmIconName; rows: Row[] };
 
@@ -47,6 +53,8 @@ export const SettingsScreen: React.FC = () => {
     wallets,
     openErrorModal,
     reopenWallet,
+    showSwmPrice,
+    setShowSwmPrice,
   } = useContext(ContextApp);
 
   const [mixnetOpen, setMixnetOpen] = useState(false);
@@ -112,6 +120,31 @@ export const SettingsScreen: React.FC = () => {
         },
       ],
     },
+    // Mainnet builds only: test coins have no price, and a test-coin build
+    // never asks for one, so a switch for it would switch nothing.
+    ...(SWARM_COINS_ARE_TEST_COINS
+      ? []
+      : [
+          {
+            title: "Price",
+            icon: "chart" as SwarmIconName,
+            rows: [
+              {
+                kind: "toggle" as const,
+                k: SWM_PRICE_SETTING_LABEL,
+                d: SWM_PRICE_SETTING_HELP,
+                on: showSwmPrice,
+                onChange: setShowSwmPrice,
+              },
+              {
+                kind: "value" as const,
+                k: "Price service",
+                d: "One request a minute while the wallet is open and on screen. No address, no balance, no identifier",
+                v: showSwmPrice ? "wallet.swarm.green" : "off",
+              },
+            ],
+          },
+        ]),
     {
       title: "This wallet",
       icon: "key",
@@ -235,7 +268,16 @@ export const SettingsScreen: React.FC = () => {
                     <span className={styles.rowTitle}>{r.k}</span>
                     <span className={styles.statNote}>{r.d}</span>
                   </span>
-                  {r.kind === "value" ? (
+                  {r.kind === "toggle" ? (
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={r.on}
+                      aria-label={r.k}
+                      className={`${styles.toggle} ${r.on ? styles.toggleOn : ""}`}
+                      onClick={() => r.onChange(!r.on)}
+                    />
+                  ) : r.kind === "value" ? (
                     <span
                       className={`${styles.mono} ${styles.settingValue}`}
                       style={

@@ -15,17 +15,24 @@ import {
   swarmProfileOrActive,
 } from "../../../utils/swarmNetwork";
 import { ZcashURITarget } from "../../../utils/uris";
+import { SwmPriceCard } from "../components/SwmPriceCard";
+import { priceIsDimmed, priceIsShown } from "../../../price/swmPrice";
+import { fiatLine, formatClock } from "../../../price/swmPriceFormat";
 
 /**
  * The first screen: one balance, four facts about it, what happened lately,
  * and a way to start a payment.
  *
- * Three things the mockup shows are not here, and each is a claim this
- * network cannot support:
+ * The fiat line ("≈ $9,364.10 USD") and the price card beside the balance
+ * are the SWM price from the SWARM price service (specs/PRICE-DISPLAY.md,
+ * src/price/): mainnet wallets only, with the setting on, greyed when the
+ * reading is not current and gone when there is none. On the test network
+ * the slot under the total says the coins are test coins instead, which is
+ * true there and nowhere else.
  *
- *   - the fiat line ("≈ $9,364.10 USD"). This wallet has no price feed, so
- *     there is no number to print; on the test network the slot says the
- *     coins are test coins, which is true there and nowhere else.
+ * Two things the mockup shows are not here, and each is a claim this network
+ * cannot support:
+ *
  *   - "42 peers". A light wallet has no peers. It talks to one indexer, and
  *     the rail names that indexer and the block height it reported instead.
  *   - the fourth card, "ON-CHAIN VIEW — what others can see". A single number
@@ -36,7 +43,7 @@ import { ZcashURITarget } from "../../../utils/uris";
 export const OverviewScreen: React.FC = () => {
   const navigate = useNavigate();
   const { hidden } = useContext(SwarmUiContext);
-  const { totalBalance, valueTransfers, readOnly, currentWallet, handleShieldButton, setSendTo } =
+  const { totalBalance, valueTransfers, readOnly, currentWallet, handleShieldButton, setSendTo, swmPrice } =
     useContext(ContextApp);
 
   const [poolsOpen, setPoolsOpen] = useState(false);
@@ -53,6 +60,12 @@ export const OverviewScreen: React.FC = () => {
   const quickReady = canSend && quickTo.trim().length > 0 && Number.isFinite(amount) && amount > 0;
 
   const show = (value: number) => maskAmount(formatSwm(value), hidden);
+
+  // Never on a test-coin build, whatever the state says: the gate in Routes
+  // already keeps it OFF there, and this is the second lock on the same door.
+  const priceOn = !SWARM_COINS_ARE_TEST_COINS && swmPrice.status !== "off";
+  const fiat = priceOn && priceIsShown(swmPrice) ? fiatLine(balances.total, swmPrice.priceUsd, hidden) : null;
+  const fiatDim = priceIsDimmed(swmPrice);
 
   /**
    * Quick send does not send. It fills in the Send screen and goes there, so
@@ -74,62 +87,77 @@ export const OverviewScreen: React.FC = () => {
 
   return (
     <>
-      <section className={styles.balanceCard} aria-label="Total balance">
-        <div className={styles.balanceFlow} />
-        <div className={styles.balanceBee} aria-hidden="true">
-          <SwarmMark size={88} animated />
-        </div>
-        <div className={styles.balanceInner}>
-          <div className={styles.balanceKicker}>
-            TOTAL BALANCE
-            <span className={styles.badge}>
-              <span className={styles.statusDot} />
-              SHIELDED
-            </span>
+      <div className={priceOn ? styles.heroRow : styles.heroSolo}>
+        <section className={styles.balanceCard} aria-label="Total balance">
+          <div className={styles.balanceFlow} />
+          <div className={styles.balanceBee} aria-hidden="true">
+            <SwarmMark size={88} animated />
           </div>
-          <div className={styles.balanceValue}>
-            {show(balances.total)} <span className={styles.balanceTicker}>{SWARM_TICKER}</span>
-          </div>
-          {/*
+          <div className={styles.balanceInner}>
+            <div className={styles.balanceKicker}>
+              TOTAL BALANCE
+              <span className={styles.badge}>
+                <span className={styles.statusDot} />
+                SHIELDED
+              </span>
+            </div>
+            <div className={styles.balanceValue}>
+              {show(balances.total)} <span className={styles.balanceTicker}>{SWARM_TICKER}</span>
+            </div>
+            {/*
             Only where it is true. Up to 0.1.0-mainnet.5 this line was written
             into the card unconditionally, so the mainnet wallet told its owner
             that real SWM had "no market value". Onboarding already follows
             the build's network; this follows it too.
           */}
-          {SWARM_COINS_ARE_TEST_COINS && <div className={styles.balanceNote}>test coins · no market value</div>}
-          <div className={styles.actionRow}>
-            <button
-              type="button"
-              className={`${styles.btn} ${styles.btnPrimary}`}
-              onClick={() => navigate(routes.SEND)}
-              disabled={!canSend}
-            >
-              <SwarmIcon name="send" size={15} /> Send
-            </button>
-            <button type="button" className={styles.btn} onClick={() => navigate(routes.RECEIVE)}>
-              <SwarmIcon name="receive" size={15} /> Receive
-            </button>
-            {/* Kept in the layout because it is in the design, disabled because
+            {SWARM_COINS_ARE_TEST_COINS && <div className={styles.balanceNote}>test coins · no market value</div>}
+            {fiat && (
+              <div
+                className={`${styles.balanceFiat} ${fiatDim ? styles.fiatDim : ""}`}
+                title={
+                  swmPrice.fetchedAtMs !== null
+                    ? `At the SWM price of ${formatClock(swmPrice.fetchedAtMs)}. Indicative, not a quote.`
+                    : undefined
+                }
+              >
+                {fiat}
+              </div>
+            )}
+            <div className={styles.actionRow}>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => navigate(routes.SEND)}
+                disabled={!canSend}
+              >
+                <SwarmIcon name="send" size={15} /> Send
+              </button>
+              <button type="button" className={styles.btn} onClick={() => navigate(routes.RECEIVE)}>
+                <SwarmIcon name="receive" size={15} /> Receive
+              </button>
+              {/* Kept in the layout because it is in the design, disabled because
                 there is no swap service on this network. A button that opened
                 a screen with nothing behind it would be worse than a greyed one. */}
-            <button type="button" className={styles.btn} disabled title="Coming soon">
-              <SwarmIcon name="swap" size={15} /> Swap
-              <span className={styles.muted} style={{ fontSize: 11 }}>
-                Coming soon
-              </span>
-            </button>
-            <button
-              type="button"
-              className={styles.btn}
-              onClick={handleShieldButton}
-              disabled={!canSend || balances.transparent <= 0}
-              title={balances.transparent <= 0 ? "Nothing transparent to shield" : undefined}
-            >
-              <SwarmIcon name="shield" size={15} /> Shield funds
-            </button>
+              <button type="button" className={styles.btn} disabled title="Coming soon">
+                <SwarmIcon name="swap" size={15} /> Swap
+                <span className={styles.muted} style={{ fontSize: 11 }}>
+                  Coming soon
+                </span>
+              </button>
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={handleShieldButton}
+                disabled={!canSend || balances.transparent <= 0}
+                title={balances.transparent <= 0 ? "Nothing transparent to shield" : undefined}
+              >
+                <SwarmIcon name="shield" size={15} /> Shield funds
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+        {priceOn && <SwmPriceCard price={swmPrice} />}
+      </div>
 
       <div className={styles.statGrid}>
         <div className={`${styles.statCard} ${styles.statCardShielded}`}>

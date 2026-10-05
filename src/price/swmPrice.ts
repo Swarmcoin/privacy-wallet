@@ -55,9 +55,9 @@ export function statusFor(
   return "fresh";
 }
 
-export function stateFor(reading: SwmPriceReading | null, status: SwmPriceStatus): SwmPriceState {
+export function stateFor(reading: SwmPriceReading | null, status: SwmPriceStatus, pending = false): SwmPriceState {
   if (status === "off") return SWM_PRICE_OFF;
-  if (!reading) return { ...SWM_PRICE_OFF, status };
+  if (!reading) return { ...SWM_PRICE_OFF, status, pending };
   return {
     priceUsd: reading.priceUsd,
     changePct24h: reading.changePct24h,
@@ -66,6 +66,7 @@ export function stateFor(reading: SwmPriceReading | null, status: SwmPriceStatus
     generatedUnix: reading.generatedUnix,
     fetchedAtMs: reading.fetchedAtMs,
     status,
+    pending: false,
   };
 }
 
@@ -161,7 +162,8 @@ export class SwmPricePoller {
 
   /** The current state, recomputed against the clock. */
   current(): SwmPriceState {
-    return stateFor(this.reading, statusFor(this.reading, this.deps.now(), { fromCache: this.fromCache }));
+    const status = statusFor(this.reading, this.deps.now(), { fromCache: this.fromCache });
+    return stateFor(this.reading, status, this.inFlightFor !== null && this.inFlightFor === this.generation);
   }
 
   /** Loads the last good reading from storage, once. It shows greyed until a fresh one arrives. */
@@ -186,8 +188,10 @@ export class SwmPricePoller {
   start(): void {
     if (this.timer !== null) return;
     this.timer = this.deps.setInterval(() => void this.poll(), this.deps.intervalMs);
-    this.emit();
+    // The request goes first so the state published next already says one
+    // is on its way.
     void this.poll();
+    this.emit();
   }
 
   /** Stops polling. An answer already on its way is ignored when it lands. */

@@ -17,7 +17,14 @@ import {
   calculateSpendable,
   trimSpendable,
 } from "../../send/components/sendPipeline";
-import { SWARM_TICKER, addressPlaceholderFor, swarmProfileOrActive } from "../../../utils/swarmNetwork";
+import {
+  SWARM_COINS_ARE_TEST_COINS,
+  SWARM_TICKER,
+  addressPlaceholderFor,
+  swarmProfileOrActive,
+} from "../../../utils/swarmNetwork";
+import { priceIsDimmed, priceIsShown } from "../../../price/swmPrice";
+import { fiatLine } from "../../../price/swmPriceFormat";
 
 /**
  * Send, as the mockup lays it out: the payment on the left, what it will cost
@@ -30,12 +37,14 @@ import { SWARM_TICKER, addressPlaceholderFor, swarmProfileOrActive } from "../..
  * money — is the application's existing `SendConfirmModal`, unchanged. This
  * file is the arrangement of those, and the sentences around them.
  *
- * Two things in the mockup are not here:
+ * "≈ $187.60 USD" under the amount is the SWM price from the SWARM price
+ * service (specs/PRICE-DISPLAY.md), on mainnet wallets with the setting on,
+ * greyed when the reading is not current. It is a display, never part of the
+ * payment: what is sent is the SWM amount, and nothing here converts.
  *
- *   - the Slow / Normal / Fast fee picker. This chain's fee is fixed by
- *     ZIP 317 and the wallet quotes it; three speeds to choose between would
- *     be three prices that do not exist.
- *   - "≈ $187.60 USD". This wallet has no price feed.
+ * One thing in the mockup is not here: the Slow / Normal / Fast fee picker.
+ * This chain's fee is fixed by ZIP 317 and the wallet quotes it; three speeds
+ * to choose between would be three prices that do not exist.
  */
 
 type SendScreenProps = {
@@ -45,7 +54,7 @@ type SendScreenProps = {
 
 export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSendPageState }) => {
   const { hidden } = useContext(SwarmUiContext);
-  const { sendPageState, totalBalance, info, readOnly, currentWallet, addressBook, addressesUnified } =
+  const { sendPageState, totalBalance, info, readOnly, currentWallet, addressBook, addressesUnified, swmPrice } =
     useContext(ContextApp);
 
   const chain: ServerChainNameEnum = currentWallet?.chain_name ?? ServerChainNameEnum.mainChainName;
@@ -140,6 +149,10 @@ export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSend
   }, [addressValid, amountValid, trimmedTo, amount, parsedAmount, memo, readOnly]);
 
   const show = (value: number) => maskAmount(formatSwm(value), hidden);
+  const amountFiat =
+    !SWARM_COINS_ARE_TEST_COINS && amountValid && priceIsShown(swmPrice)
+      ? fiatLine(parsedAmount, swmPrice.priceUsd, hidden)
+      : null;
   const total = (Number.isFinite(parsedAmount) ? parsedAmount : 0) + fee;
   const overSpendable = amountValid && spendable > 0 && parsedAmount + fee > spendable;
   const canReview = !readOnly && addressValid && amountValid && !quoteError && !overSpendable;
@@ -284,6 +297,14 @@ export const SendScreen: React.FC<SendScreenProps> = ({ sendTransaction, setSend
                 MAX
               </button>
             </div>
+            {amountFiat && (
+              <div
+                className={`${styles.fiatNote} ${priceIsDimmed(swmPrice) ? styles.fiatDim : ""}`}
+                data-testid="send-amount-fiat"
+              >
+                {amountFiat}
+              </div>
+            )}
             <div className={styles.fieldNote}>
               {spendable > 0
                 ? `${show(spendable)} ${SWARM_TICKER} spendable, fee included`
