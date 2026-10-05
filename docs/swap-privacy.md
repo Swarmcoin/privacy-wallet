@@ -117,3 +117,54 @@ truth once it does.
 `native/Cargo.toml` pins zingolib by branch. ADR 0024 rule 7: "Consumers
 declare exactly one wallet dependency: zingolib at a git rev, never a branch."
 A one-line change once `opreturn_on_proposal` lands.
+
+## The SWM price
+
+Since 0.1.0-mainnet.11 (unreleased) the wallet shows the SWM price on SWARM
+mainnet wallets: a price card on the Overview, the balance in US dollars
+under the total, and the amount in dollars on Send. Specification:
+`specs/PRICE-DISPLAY.md` in the project repository.
+
+**Where it comes from.** Only from the SWARM price service,
+`GET https://wallet.swarm.green/api/price/swm`. That service reads the
+SWM/ETH Uniswap v4 pool on Base from GeckoTerminal and DexScreener and
+caches the result. The wallet never contacts GeckoTerminal, DexScreener or
+any other third party for a price: a wallet that did would tell that party,
+once a minute, that this IP runs a SWARM wallet.
+
+**What leaves the machine.** One unauthenticated GET per minute, carrying
+no address, no balance, no wallet identifier, no cookie and no referrer.
+The URL is fixed in the main process (`public/swmPrice.js`), which accepts
+that one host exactly, refuses redirects, gives up after 8 seconds, reads at
+most 64 KiB and checks the answer (`schema: "swarm-price/1"`, a positive
+decimal price) before the renderer sees any of it. The renderer passes no
+URL and cannot widen the list; the channel also checks that the call comes
+from the wallet's own page.
+
+**When.** Only while all of these hold: the build is a SWARM mainnet build,
+the open wallet is a SWARM mainnet wallet, the wallet is open and unlocked,
+the window is visible, and the setting is on. Minimising the window stops
+the requests; bringing it back makes one at once. Testnet builds and testnet
+wallets make none.
+
+**How it travels.** Over clearnet, like the treasury relay, not through the
+mixnet. What it reveals to the SWARM host is that this IP runs a SWARM
+wallet with the price switched on; nothing about the wallet's contents. The
+ZEC price that zingolib fetches over the mixnet (ADR 0024 rule 6, above) is a
+different request and stays switched off on SWARM.
+
+**The switch.** Settings → Price → "Show SWM price (USD)", on by default.
+Off means no price requests at all and no price anywhere on screen. The
+last good reading is kept in the renderer's local storage so the next start
+can show it, greyed, until a fresh one arrives.
+
+**The listing link.** Clicking the price card opens the pool's page on
+DexScreener in the system browser. That URL is a constant in the main
+process; the renderer names "dexscreener" and nothing else. Opening it is
+the user's own visit to DexScreener, with the browser's own privacy, not a
+request the wallet makes.
+
+**What the number is.** An indicative price from a small pool, which small
+trades move. The card says so, and calls it "not a quote". The dollar values
+are the balance in zatoshis times the relay's decimal price, rounded half-up
+to cents: a display, never part of a payment.

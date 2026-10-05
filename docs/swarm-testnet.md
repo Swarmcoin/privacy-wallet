@@ -1,6 +1,6 @@
 # SWARM Wallet (Testnet)
 
-This fork keeps Zingo PC's desktop application and Zingolib's wallet and cryptographic implementation unchanged. What it adds is a network profile: `swarm-testnet`, the SwarmTestnet chain, which uses standard Zcash testnet address encodings and an explicitly pinned genesis. It is not the public Zcash testnet, and its coins — shown as `SWM` — have no market value and no fiat price.
+This fork keeps Zingo PC's desktop application and Zingolib's wallet and cryptographic implementation unchanged. What it adds is a network profile: `swarm-testnet`, the SwarmTestnet chain, which uses standard Zcash testnet address encodings and an explicitly pinned genesis. It is not the public Zcash testnet, and its coins — shown as `SWM` — have no market value and no fiat price. The testnet build shows no price anywhere and makes no price requests. The SWARM mainnet build shows the SWM price, read from the SWARM price service at `wallet.swarm.green` (see `docs/swap-privacy.md`, "The SWM price"); a testnet wallet opened in a mainnet build shows none either.
 
 ## Which network this build talks to, and how it proves it
 
@@ -38,7 +38,7 @@ Nothing is shared with the retired Privacy Testnet wallet.
 
 ## Suppressed for this chain
 
-Public server discovery, the ZEC price fetch and the mixnet-price notice, public block-explorer links for transactions and addresses, and the `zcash:` protocol handler — the packaged build never registers itself as the machine's handler for public Zcash payment links.
+Public server discovery, the ZEC price fetch and the mixnet-price notice (the SWM price on mainnet is a separate request to a SWARM host, not this one), public block-explorer links for transactions and addresses, and the `zcash:` protocol handler — the packaged build never registers itself as the machine's handler for public Zcash payment links.
 
 ## Build
 

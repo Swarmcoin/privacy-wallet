@@ -2,6 +2,30 @@
 
 Newest first. Each entry says what changed for the person using the wallet.
 
+## 0.1.0-mainnet.11 (unreleased)
+
+- **The SWM price.** On SWARM mainnet wallets the Overview shows the SWM
+  price in US dollars beside your balance: the price, the change over 24
+  hours, a line of the last two days, where the price comes from and how
+  old it is. Your balance is shown in dollars under the total, and Send
+  shows the amount in dollars as you type it. Click the price to open the
+  SWM/ETH pool on DexScreener in your browser.
+- **Where the price comes from.** The SWARM price service at
+  wallet.swarm.green, which reads the SWM/ETH pool on Base from
+  GeckoTerminal and DexScreener. The wallet never asks those sites itself.
+  Your addresses and balances are never sent: the wallet makes one plain
+  request a minute, and only while it is open and on screen.
+- **It is an indicative price.** The pool is small, so small trades move
+  it. It is not a quote, and it is never used in a payment.
+- **When the price is old.** After five minutes without a new reading the
+  price is greyed and says "as of" the time it was read; after an hour it
+  says "Price unavailable".
+- **You can switch it off.** Settings → Price → "Show SWM price (USD)". Off
+  means no price requests at all. "Hide balances" hides the dollar values
+  too.
+- Test-coin builds and testnet wallets show no price and make no price
+  requests.
+
 ## 0.1.0-mainnet.10 (2 October 2026)
 
 The SWARM network was restarted on 2 October 2026 from a new first block.
