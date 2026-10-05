@@ -26,6 +26,10 @@ import {
 import { encode, draw } from "./lib/qr.js";
 import {
   DEXSCREENER_URL,
+  GECKOTERMINAL_URL,
+  POOL_ID,
+  TOKEN_CONTRACT,
+  SOURCE_NAMES,
   FRESHNESS,
   LAST_PRICE_KEY,
   MASKED_FIAT,
@@ -33,14 +37,26 @@ import {
   POLL_MS,
   PRICE_NOTE,
   SHOW_PRICE_KEY,
+  availableRanges,
+  chartGeometry,
   classify,
   clockTime,
   fetchPrice,
   formatChange,
+  formatEthPrice,
   formatFiat,
+  formatPointTime,
+  formatUsdAmount,
   formatUsdPrice,
+  formatUsdValue,
+  freshnessText,
   fromStored,
   metaLine,
+  nearestIndex,
+  pickRange,
+  rangeSeries,
+  RANGES,
+  shortHex,
   sparklinePaths,
   toStored,
 } from "./lib/price.js";
@@ -53,7 +69,7 @@ import {
 const RESTART_NOTICE =
   "The SWARM network was restarted on 2 October 2026. Your addresses and recovery phrase are unchanged; balances start again from the new chain.";
 
-const VIEWS = ["nohost", "share", "setup", "locked", "wallet", "receive", "send", "confirm", "sent"];
+const VIEWS = ["nohost", "share", "setup", "locked", "wallet", "price", "receive", "send", "confirm", "sent"];
 
 /** Storage keys shared with the service worker's one door to SWARM Rewards. */
 const CONSENT_KEY = "rewardsAddressConsent";
@@ -213,7 +229,7 @@ function paintBalance(b) {
 /* ── SWM price ──────────────────────────────────────────────────────────── */
 
 /** Screens on which the price is shown and kept fresh. */
-const PRICE_VIEWS = ["wallet", "receive", "send", "confirm", "sent"];
+const PRICE_VIEWS = ["wallet", "price", "receive", "send", "confirm", "sent"];
 /** How often "updated 12 s ago" is repainted. The request itself is once a minute. */
 const PRICE_REPAINT_MS = 5000;
 /** The sparkline's viewBox: the card's inner width at the popup's 360 px. */
@@ -237,7 +253,17 @@ const price = {
   repaintTimer: null,
   /** The shielded balance as the host sent it (SWM, a float), for the fiat line. */
   balance: null,
+  /** The price page's chart: the range asked for, what is drawn, and where the pointer is. */
+  range: "24h",
+  chart: null,
+  hoverX: null,
+  /** Set when a new reading lands, so the page can fade it in once. */
+  landed: false,
 };
+
+function isShowing(name) {
+  return !el(`view-${name}`).classList.contains("hidden");
+}
 
 function isMainnet(network) {
   return !!network && network.id === "swarm-mainnet" && network.coinsAreTestCoins === false;
@@ -292,6 +318,7 @@ async function pollPrice() {
   if (answer.ok && priceActive()) {
     price.reading = answer.reading;
     price.live = true;
+    price.landed = true;
     try {
       await chrome.storage.local.set({ [LAST_PRICE_KEY]: toStored(answer.reading) });
     } catch (_) {
@@ -303,8 +330,15 @@ async function pollPrice() {
 
 function paintPrice() {
   const card = el("price-card");
+  const onPage = isShowing("price");
+  // The page exists only on SWARM Mainnet; the card that opens it is absent elsewhere.
+  if (onPage && !price.mainnet) {
+    view("wallet");
+    return;
+  }
   if (!priceActive()) {
     show(card, false);
+    if (onPage) paintPricePage(null);
     paintBalanceFiat();
     paintSendFiat();
     return;
@@ -346,8 +380,178 @@ function paintPrice() {
     paintSparkline(null);
     setText("price-meta", keepTogether(r ? `Base · Uniswap v4 · last reading ${clockTime(r.fetchedAt)}` : "Base · Uniswap v4"));
   }
+  if (onPage) paintPricePage({ now, r, freshness, usable, greyed, dotKind });
+  price.landed = false;
   paintBalanceFiat();
   paintSendFiat();
+}
+
+/* ── the price page ─────────────────────────────────────────────────────── */
+
+/** The chart's viewBox, at the popup's 360 px: the plot, then a gutter for the labels. */
+const CHART_W = 298;
+const CHART_H = 180;
+const PLOT_W = 240;
+const RANGE_TEXT = { "24h": "Last 24 hours", "48h": "Last 48 hours", "30d": "Last 30 days" };
+
+/** `look` is null when the setting is off; then only the note and the switch show. */
+function paintPricePage(look) {
+  const on = !!look;
+  el("pp-show-price").checked = on;
+  show(el("pp-body"), on);
+  show(el("pp-freshline"), on);
+  show(el("pp-off"), !on);
+  if (!on) {
+    price.chart = null;
+    return;
+  }
+  const { now, r, freshness, usable, greyed, dotKind } = look;
+  const page = el("view-price");
+  page.classList.toggle("greyed", greyed);
+  el("pp-dot").className = dotKind ? `dot ${dotKind}` : "dot";
+  setText("pp-fresh", !r && !price.attempted ? "asking the SWARM price service…" : freshnessText(r, now));
+
+  const value = el("pp-value");
+  show(el("pp-unit"), usable);
+  value.classList.toggle("none", !usable);
+  value.textContent = usable ? formatUsdPrice(r.price_usd) : !r && !price.attempted ? "…" : "Price unavailable";
+  if (usable && price.landed) {
+    // The one animation on the page: a fresh price fades in.
+    value.classList.remove("landed");
+    void value.offsetWidth;
+    value.classList.add("landed");
+  }
+  const eth = usable && r.price_eth ? formatEthPrice(r.price_eth) : null;
+  setText("pp-eth", eth || "");
+  show(el("pp-eth"), !!eth);
+  for (const [id, pct, label] of [
+    ["pp-h1", usable ? r.change_pct_h1 : null, "1h"],
+    ["pp-h6", usable ? r.change_pct_h6 : null, "6h"],
+    ["pp-h24", usable ? r.change_pct_h24 : null, "24h"],
+  ]) {
+    const chip = el(id);
+    const change = formatChange(pct, label);
+    show(chip, !!change);
+    if (change) {
+      chip.textContent = change.text;
+      chip.className = `price-chip ${change.direction}`;
+    }
+  }
+
+  show(el("pp-chart-card"), usable);
+  show(el("pp-stats"), usable);
+  if (usable) {
+    paintChart(r);
+    setText("pp-liquidity", formatUsdAmount(r.liquidity_usd));
+    setText("pp-volume", formatUsdAmount(r.volume_24h_usd));
+    setText("pp-fdv", formatUsdAmount(r.fdv_usd));
+    setText("pp-trades", r.transactions_24h ? `${r.transactions_24h.buys} / ${r.transactions_24h.sells}` : "—");
+    setText("pp-fee", r.fee_pct === null ? "—" : `${Math.round(r.fee_pct * 100) / 100} %`);
+  } else {
+    price.chart = null;
+  }
+
+  // Your balance, hidden with the balance on the wallet screen.
+  const fiat = usable && price.balance !== null ? formatFiat(price.balance, r.price_usd) : null;
+  show(el("pp-balance"), price.balance !== null);
+  if (price.balance !== null) {
+    setText("pp-balance-swm", state.revealed ? formatAmount(price.balance, "SWM") : maskAmount(price.balance, "SWM"));
+    setText("pp-balance-fiat", fiat ? (state.revealed ? fiat : MASKED_FIAT) : "");
+    el("pp-balance-swm").classList.toggle("masked", !state.revealed);
+  }
+
+  for (const id of Object.keys(SOURCE_NAMES)) {
+    const s = r && r.sources ? r.sources.find((x) => x.id === id) : null;
+    const good = !!s && s.ok && !!s.price_usd;
+    setText(`pp-src-${id}-price`, good ? formatUsdPrice(s.price_usd) : "—");
+    setText(`pp-src-${id}-mark`, good ? "✓" : "—");
+    el(`pp-src-${id}`).classList.toggle("failed", !good);
+  }
+}
+
+function paintChart(r) {
+  const ok = availableRanges(r);
+  const range = pickRange(r, price.range);
+  for (const button of document.querySelectorAll(".pp-range")) {
+    const name = button.dataset.range;
+    button.disabled = !ok[name];
+    button.setAttribute("aria-pressed", String(name === range));
+  }
+  const series = range ? rangeSeries(r, range) : null;
+  const g = series ? chartGeometry(series.values, { width: PLOT_W, height: CHART_H, padTop: 12, padBottom: 12 }) : null;
+  show(el("pp-chart"), !!g);
+  show(el("pp-nochart"), !g);
+  price.chart = g ? { series, g } : null;
+  if (!g) {
+    setText("pp-readout", "");
+    return;
+  }
+  el("pp-line").setAttribute("d", g.line);
+  el("pp-area").setAttribute("d", g.area);
+  g.guides.forEach((y, i) => {
+    const guide = el(`pp-guide-${i}`);
+    guide.setAttribute("y1", y);
+    guide.setAttribute("y2", y);
+  });
+  const n = series.values.length;
+  const [endX, endY] = g.points[n - 1];
+  el("pp-end").setAttribute("cx", endX);
+  el("pp-end").setAttribute("cy", endY);
+
+  // Lowest and highest at the edge, the latest at the line's end; a label that
+  // would sit on top of another is left out (the latest wins).
+  const maxY = g.points[g.maxIndex][1];
+  const minY = g.points[g.minIndex][1];
+  const apart = (a, b) => Math.abs(a - b) >= 12;
+  label("pp-latest-label", series.values[n - 1], endY, true);
+  label("pp-max-label", g.max, maxY, g.maxIndex !== n - 1 && apart(maxY, endY));
+  label("pp-min-label", g.min, minY, g.minIndex !== n - 1 && apart(minY, endY) && apart(minY, maxY));
+
+  if (price.hoverX === null) setText("pp-readout", RANGE_TEXT[range]);
+  else hoverAt(price.hoverX);
+}
+
+function label(id, value, y, visible) {
+  const node = el(id);
+  show(node, visible);
+  if (!visible) return;
+  node.textContent = formatUsdValue(value) || "";
+  node.setAttribute("y", String(Math.min(CHART_H - 2, Math.max(10, y + 4))));
+}
+
+/** The readout for the point nearest `x` (viewBox units). */
+function hoverAt(x) {
+  const c = price.chart;
+  if (!c) return;
+  const n = c.series.values.length;
+  const i = nearestIndex(Math.min(x, PLOT_W), n, PLOT_W);
+  if (i === null) return;
+  const [px, py] = c.g.points[i];
+  const cursor = el("pp-cursor");
+  cursor.setAttribute("x1", px);
+  cursor.setAttribute("x2", px);
+  el("pp-hover").setAttribute("cx", px);
+  el("pp-hover").setAttribute("cy", py);
+  show(cursor, true);
+  show(el("pp-hover"), true);
+  const value = formatUsdValue(c.series.values[i]);
+  const when = c.series.times ? formatPointTime(c.series.times[i], c.series.daily) : null;
+  setText("pp-readout", when ? `${value} · ${when}` : value);
+}
+
+function endHover() {
+  price.hoverX = null;
+  show(el("pp-cursor"), false);
+  show(el("pp-hover"), false);
+  const range = price.chart ? price.chart.series.range : null;
+  setText("pp-readout", range ? RANGE_TEXT[range] : "");
+}
+
+function openPricePage() {
+  if (!priceActive()) return;
+  price.hoverX = null;
+  view("price");
+  window.scrollTo(0, 0);
 }
 
 /** The meta line wraps only between its parts, never inside "updated 12 s ago". */
@@ -408,9 +612,9 @@ function paintSendFiat() {
   paintFiatHint("confirm-fiat", state.pendingSend ? fiatForAmount(state.pendingSend.amount) : null);
 }
 
-function openListing() {
-  // A fixed URL (lib/price.js), never one from the relay.
-  const url = DEXSCREENER_URL;
+/** Opens one of the two listing pages. Fixed URLs (lib/price.js), never one from the relay. */
+function openListing(url) {
+  if (url !== DEXSCREENER_URL && url !== GECKOTERMINAL_URL) return;
   chrome.tabs.create({ url });
   window.close();
 }
@@ -487,12 +691,50 @@ async function doSend() {
 
 el("nohost-retry").addEventListener("click", refresh);
 
-el("price-card").addEventListener("click", openListing);
+el("price-card").addEventListener("click", openPricePage);
 el("price-card").addEventListener("keydown", (e) => {
   if (e.target !== e.currentTarget) return;
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
-    openListing();
+    openPricePage();
+  }
+});
+el("price-back").addEventListener("click", () => view("wallet"));
+for (const button of document.querySelectorAll(".pp-range")) {
+  button.addEventListener("click", () => {
+    if (!RANGES.includes(button.dataset.range)) return;
+    price.range = button.dataset.range;
+    price.hoverX = null;
+    endHover();
+    paintPrice();
+  });
+}
+el("pp-chart").addEventListener("mousemove", (e) => {
+  const box = el("pp-chart").getBoundingClientRect();
+  if (!box.width) return;
+  price.hoverX = ((e.clientX - box.left) * CHART_W) / box.width;
+  hoverAt(price.hoverX);
+});
+el("pp-chart").addEventListener("mouseleave", endHover);
+el("pp-src-geckoterminal").addEventListener("click", () => openListing(GECKOTERMINAL_URL));
+el("pp-src-dexscreener").addEventListener("click", () => openListing(DEXSCREENER_URL));
+el("pp-open-gecko").addEventListener("click", () => openListing(GECKOTERMINAL_URL));
+el("pp-open-dex").addEventListener("click", () => openListing(DEXSCREENER_URL));
+setText("pp-pool", shortHex(POOL_ID));
+setText("pp-token", shortHex(TOKEN_CONTRACT));
+el("pp-pool").title = POOL_ID;
+el("pp-token").title = TOKEN_CONTRACT;
+el("pp-pool-copy").addEventListener("click", (e) => copyToClipboard(POOL_ID, e.target));
+el("pp-token-copy").addEventListener("click", (e) => copyToClipboard(TOKEN_CONTRACT, e.target));
+setText("pp-note", PRICE_NOTE);
+// The same setting as in Settings, under the same key.
+el("pp-show-price").addEventListener("change", async (e) => {
+  const on = e.target.checked;
+  try {
+    await chrome.storage.local.set({ [SHOW_PRICE_KEY]: on });
+    if (!on) await chrome.storage.local.remove(LAST_PRICE_KEY);
+  } catch (_) {
+    e.target.checked = !on;
   }
 });
 setText("price-note", PRICE_NOTE);
@@ -604,6 +846,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[SHOW_PRICE_KEY]) return;
   price.enabled = changes[SHOW_PRICE_KEY].newValue !== false;
   if (!price.enabled) price.reading = null;
+  else price.attempted = false;
   if (PRICE_VIEWS.some((v) => !el(`view-${v}`).classList.contains("hidden"))) startPrice();
   else paintPrice();
 });

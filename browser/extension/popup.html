@@ -92,7 +92,7 @@
             id="price-card"
             role="link"
             tabindex="0"
-            aria-label="SWM price. Opens the SWM/ETH pool on DexScreener."
+            aria-label="SWM price. Opens the price page."
           >
             <div class="price-head">
               <img class="price-mark" src="icons/swarm-mark.svg" alt="" />
@@ -144,6 +144,144 @@
             <button id="go-settings" class="ghost">Settings</button>
             <button id="lock" class="danger">Lock</button>
           </div>
+        </div>
+
+        <!-- the price page (specs/PRICE-DISPLAY.md §6); SWARM Mainnet only -->
+        <div id="view-price" class="hidden">
+          <div class="row between">
+            <div class="row">
+              <img class="pp-mark" src="icons/swarm-mark.svg" alt="" />
+              <h1 class="pp-title">SWM price</h1>
+            </div>
+            <button id="price-back" class="link">Back</button>
+          </div>
+          <div class="pp-fresh" id="pp-freshline">
+            <span class="dot" id="pp-dot"></span>
+            <span id="pp-fresh">…</span>
+          </div>
+
+          <div id="pp-body">
+            <div class="pp-price">
+              <span class="pp-value" id="pp-value">…</span>
+              <span class="price-unit" id="pp-unit">USD</span>
+            </div>
+            <div class="pp-eth" id="pp-eth"></div>
+            <div class="pp-chips">
+              <span class="price-chip hidden" id="pp-h1"></span>
+              <span class="price-chip hidden" id="pp-h6"></span>
+              <span class="price-chip hidden" id="pp-h24"></span>
+            </div>
+
+            <div class="section pp-chart-card" id="pp-chart-card">
+              <div class="row between pp-chart-head">
+                <span class="pp-readout" id="pp-readout"></span>
+                <div class="pp-ranges" role="group" aria-label="Chart range">
+                  <button type="button" class="pp-range" data-range="24h" aria-pressed="false">24h</button>
+                  <button type="button" class="pp-range" data-range="48h" aria-pressed="false">48h</button>
+                  <button type="button" class="pp-range" data-range="30d" aria-pressed="false">30d</button>
+                </div>
+              </div>
+              <svg
+                class="pp-chart"
+                id="pp-chart"
+                viewBox="0 0 298 180"
+                role="img"
+                aria-label="SWM price chart"
+                focusable="false"
+              >
+                <defs>
+                  <linearGradient id="pp-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop class="price-spark-top" offset="0" />
+                    <stop class="price-spark-bottom" offset="1" />
+                  </linearGradient>
+                </defs>
+                <line class="pp-guide" id="pp-guide-0" x1="0" x2="240" y1="0" y2="0" />
+                <line class="pp-guide" id="pp-guide-1" x1="0" x2="240" y1="0" y2="0" />
+                <line class="pp-guide" id="pp-guide-2" x1="0" x2="240" y1="0" y2="0" />
+                <path class="price-spark-area" id="pp-area" fill="url(#pp-fill)" d="" />
+                <path class="price-spark-line" id="pp-line" d="" />
+                <line class="pp-cursor hidden" id="pp-cursor" x1="0" x2="0" y1="0" y2="180" />
+                <circle class="pp-end" id="pp-end" cx="0" cy="0" r="3" />
+                <circle class="pp-hover hidden" id="pp-hover" cx="0" cy="0" r="3.5" />
+                <text class="pp-label" id="pp-max-label" x="248" y="0"></text>
+                <text class="pp-label" id="pp-min-label" x="248" y="0"></text>
+                <text class="pp-label latest" id="pp-latest-label" x="248" y="0"></text>
+              </svg>
+              <p class="note hidden" id="pp-nochart">No chart data yet.</p>
+            </div>
+
+            <div class="section pp-balance" id="pp-balance">
+              <span class="balance-label">Your balance</span>
+              <div class="pp-balance-value">
+                <span id="pp-balance-swm"></span>
+                <span class="pp-balance-fiat" id="pp-balance-fiat"></span>
+              </div>
+            </div>
+
+            <div class="section pp-stats" id="pp-stats">
+              <div>
+                <span class="balance-label">Liquidity</span>
+                <div class="pp-stat" id="pp-liquidity">—</div>
+              </div>
+              <div>
+                <span class="balance-label">24 h volume</span>
+                <div class="pp-stat" id="pp-volume">—</div>
+              </div>
+              <div>
+                <span class="balance-label">Fully diluted value</span>
+                <div class="pp-stat" id="pp-fdv">—</div>
+              </div>
+              <div>
+                <span class="balance-label">Buys / sells 24 h</span>
+                <div class="pp-stat" id="pp-trades">—</div>
+              </div>
+              <div>
+                <span class="balance-label">Pool fee</span>
+                <div class="pp-stat" id="pp-fee">—</div>
+              </div>
+              <div>
+                <span class="balance-label">Network</span>
+                <div class="pp-stat">Base</div>
+              </div>
+            </div>
+
+            <div class="section pp-sources">
+              <span class="balance-label">Sources</span>
+              <button type="button" class="pp-source" id="pp-src-geckoterminal">
+                <span class="pp-src-name">GeckoTerminal</span>
+                <span class="pp-src-price" id="pp-src-geckoterminal-price">—</span>
+                <span class="pp-src-mark" id="pp-src-geckoterminal-mark">—</span>
+              </button>
+              <button type="button" class="pp-source" id="pp-src-dexscreener">
+                <span class="pp-src-name">DexScreener</span>
+                <span class="pp-src-price" id="pp-src-dexscreener-price">—</span>
+                <span class="pp-src-mark" id="pp-src-dexscreener-mark">—</span>
+              </button>
+              <div class="pp-id-row">
+                <span class="note">Pool</span>
+                <span class="mono" id="pp-pool"></span>
+                <button type="button" class="link" id="pp-pool-copy">Copy</button>
+              </div>
+              <div class="pp-id-row">
+                <span class="note">Token</span>
+                <span class="mono" id="pp-token"></span>
+                <button type="button" class="link" id="pp-token-copy">Copy</button>
+              </div>
+            </div>
+
+            <div class="buttons">
+              <button type="button" id="pp-open-dex">Open on DexScreener</button>
+              <button type="button" id="pp-open-gecko">Open on GeckoTerminal</button>
+            </div>
+          </div>
+
+          <p class="note pp-note" id="pp-note"></p>
+          <label class="switch" for="pp-show-price">
+            <input type="checkbox" id="pp-show-price" role="switch" />
+            <span class="switch-track" aria-hidden="true"></span>
+            <span>Show SWM price (USD)</span>
+          </label>
+          <p class="note hidden" id="pp-off">The price is switched off. The wallet makes no price requests.</p>
         </div>
 
         <!-- receive -->

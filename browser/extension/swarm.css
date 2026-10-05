@@ -360,24 +360,292 @@ p {
   margin: 8px 0 0;
 }
 
-/* Old, stale, or not yet confirmed this opening: the price goes grey. */
-.price-card.greyed .price-value {
+/* Old, stale, or not yet confirmed this opening: the price goes grey, on the card and on the page. */
+.greyed .price-value,
+.greyed .pp-value {
   color: var(--low);
 }
 
-.price-card.greyed .price-chip {
+.greyed .price-chip {
   color: var(--low);
   border-color: #2c261f;
   background: transparent;
 }
 
-.price-card.greyed .price-spark-line {
+.greyed .price-spark-line {
   stroke: var(--low);
 }
 
-.price-card.greyed .price-spark-top,
-.price-card.greyed .price-spark-bottom {
+.greyed .price-spark-top,
+.greyed .price-spark-bottom {
   stop-color: var(--low);
+}
+
+.greyed .pp-end {
+  fill: var(--low);
+}
+
+/* ── the price page (specs/PRICE-DISPLAY.md §6) ───────────────────────── */
+
+.pp-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+}
+
+.pp-title {
+  margin: 0;
+}
+
+.pp-fresh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 14px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--low);
+}
+
+.pp-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pp-value {
+  font-family: "Sora", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--wax);
+}
+
+.pp-value.none {
+  font-size: 18px;
+  color: var(--low);
+}
+
+.pp-value.landed {
+  animation: pp-land 0.5s ease-out;
+}
+
+@keyframes pp-land {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-value.landed {
+    animation: none;
+  }
+}
+
+.pp-eth {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--mid);
+  margin-top: 2px;
+}
+
+.pp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+
+.pp-chips .price-chip {
+  margin-left: 0;
+}
+
+.pp-chart-head {
+  margin-bottom: 8px;
+}
+
+.pp-readout {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--mid);
+  white-space: nowrap;
+}
+
+.pp-ranges {
+  display: flex;
+  gap: 2px;
+  background: var(--void);
+  border: 1px solid #2c261f;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.pp-range {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 400;
+  font-size: 11px;
+  padding: 2px 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mid);
+}
+
+.pp-range[aria-pressed="true"] {
+  background: var(--surface-2);
+  color: var(--hive-orange);
+}
+
+.pp-range:disabled {
+  opacity: 0.35;
+}
+
+.pp-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  cursor: crosshair;
+}
+
+.pp-guide {
+  stroke: #2a241e;
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.pp-cursor {
+  stroke: var(--mid);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+
+.pp-end {
+  fill: var(--hive-orange);
+}
+
+.pp-hover {
+  fill: var(--wax);
+  stroke: var(--hive-orange);
+  stroke-width: 1.5;
+}
+
+.pp-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  fill: var(--low);
+}
+
+.pp-label.latest {
+  fill: var(--wax);
+}
+
+.pp-balance-value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+#pp-balance-swm {
+  color: var(--hive-orange);
+}
+
+#pp-balance-swm.masked {
+  color: var(--honey);
+}
+
+.pp-balance-fiat {
+  color: var(--mid);
+}
+
+.pp-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+
+.pp-stats .balance-label {
+  font-size: 10px;
+}
+
+.pp-stat {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--wax);
+}
+
+.pp-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #241f1a;
+  border-radius: 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.pp-source:hover .pp-src-name {
+  color: var(--hive-orange);
+}
+
+.pp-src-name {
+  flex: 1;
+  font-size: 13px;
+}
+
+.pp-src-price {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--wax);
+}
+
+.pp-src-mark {
+  width: 14px;
+  text-align: center;
+  color: var(--success);
+}
+
+.pp-source.failed .pp-src-name,
+.pp-source.failed .pp-src-price,
+.pp-source.failed .pp-src-mark {
+  color: var(--low);
+}
+
+.pp-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.pp-id-row .note {
+  width: 44px;
+}
+
+.pp-id-row .mono {
+  flex: 1;
+  font-size: 12px;
+}
+
+.pp-note {
+  margin-top: 14px;
 }
 
 /* ── controls ─────────────────────────────────────────────────────────── */
