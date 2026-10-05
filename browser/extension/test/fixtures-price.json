@@ -1,0 +1,29 @@
+{
+  "schema": "swarm-price/1",
+  "symbol": "SWM",
+  "quote": "USD",
+  "price_usd": "0.84114343",
+  "price_eth": "0.000195976",
+  "change_pct": { "h1": 0, "h6": 28.75, "h24": 36.72 },
+  "volume_24h_usd": 378.11,
+  "liquidity_usd": 3761.34,
+  "fdv_usd": 8411.43,
+  "source": "geckoterminal",
+  "sources": [
+    { "id": "geckoterminal", "ok": true,  "price_usd": "0.84114343", "fetched_unix": 1791223633 },
+    { "id": "dexscreener",   "ok": true,  "price_usd": "0.8602",     "fetched_unix": 1791223633 }
+  ],
+  "sparkline_usd": [0.5259, 0.5730, 0.6361, 0.6533, 0.7537, 0.8411],
+  "sparkline_hours": 48,
+  "pool": {
+    "chain": "base",
+    "dex": "uniswap-v4",
+    "id": "0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf9e2e8937ce9c2fe2960f4599",
+    "token": "0xf904C14d21bEF5b8a5345a666C77C9cc2A24043B",
+    "geckoterminal_url": "https://www.geckoterminal.com/base/pools/0xf1e0…4599",
+    "dexscreener_url": "https://dexscreener.com/base/0xf1e0…4599"
+  },
+  "generated_unix": 1791223633,
+  "refresh_seconds": 30,
+  "stale": false
+}
