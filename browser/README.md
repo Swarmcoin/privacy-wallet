@@ -6,9 +6,10 @@ Chromium-based browser on Windows, before the branded SWARM Browser exists.
 Two pieces:
 
 - **`extension/`** — an MV3 extension called **SWARM Wallet**: a toolbar popup
-  (balance, receive, send), a side panel (history), onboarding and settings.
-  It holds no keys, makes no network requests, and asks for no access to any
-  web page.
+  (balance, SWM price, receive, send), a side panel (history), onboarding and
+  settings. It holds no keys and asks for no access to any web page. Its one
+  network request of its own is the SWM price, from the SWARM price service,
+  and it can be switched off (see *The SWM price* below).
 - **`host/`** — **swarm-wallet-host**, a small Node program outside the
   browser. It loads the same compiled wallet core (`native.node`) the desktop
   SWARM Wallet runs, keeps the wallet file in its own folder, and asks Windows
@@ -93,10 +94,41 @@ refuses anything over 256 KiB, because nothing it understands is larger, and a
 length prefix is the one number an attacker controls before any parsing
 happens. Replies over Chromium's 1 MB limit are refused rather than written.
 
-**No network in the browser.** The extension requests no host permissions and
-its content-security policy sets `connect-src 'none'`. Fonts and the QR
-encoder are bundled files, not a CDN. Everything that reaches the SWARM
-network goes through the host.
+**One network request in the browser, and it is switchable.** The extension's
+only host permission is `https://wallet.swarm.green/api/price/swm` and its
+content-security policy sets `connect-src https://wallet.swarm.green`, for the
+SWM price and nothing else. Fonts and the QR encoder are bundled files, not a
+CDN. Everything that reaches the SWARM network goes through the host.
+
+## The SWM price
+
+Extension 0.2.1 (the host stays 0.2.0; nothing in it changed) shows the SWM
+price, as `specs/PRICE-DISPLAY.md` in the project repository describes:
+
+- **Where it comes from.** One unauthenticated `GET
+  https://wallet.swarm.green/api/price/swm` a minute, from the popup itself
+  (`extension/lib/price.js`), not through the host. The relay reads the SWM/ETH
+  pool on Base from GeckoTerminal and DexScreener. The URL is fixed in code.
+  No cookies, no referrer, no redirects, an 8 s deadline, at most 64 KiB, and
+  only a `swarm-price/1` answer with a positive decimal-string price is
+  accepted. No address, balance or identifier is sent.
+- **When.** Only while a wallet screen of the popup is open, only when the
+  host reports SWARM Mainnet (`network.id == "swarm-mainnet"`, not test
+  coins), and only while **Settings → SWM price → Show SWM price (USD)** is on
+  (the default). Off means no request at all; switching it off also forgets the
+  last reading. The side panel, settings, onboarding and the service worker
+  never ask.
+- **What it shows.** `≈ $… USD` under the shielded balance (masked as
+  `≈ •••••• USD` while the balance is hidden), a price card (price, 24 h
+  change, 48 h sparkline, source and age; a click opens the pool on
+  DexScreener), and `≈ $… USD` under the send amount and on the confirmation
+  screen. The value is shielded balance × price in BigInt arithmetic on the
+  zatoshi amount, rounded half-up to the cent: a display, not a quote.
+- **Freshness.** Fresh under 5 minutes; 5–30 minutes "as of hh:mm"; over 30
+  minutes, or when the relay says `stale`, greyed; over 60 minutes "Price
+  unavailable". The last good reading is kept in `chrome.storage.local`
+  (`swmPriceLast`) and shown greyed at the next opening until a new one
+  arrives.
 
 ### What is *not* protected
 
@@ -137,7 +169,8 @@ wallet with its own recovery phrase. Override it for a test with
 
 ```
 cd browser/host       && npm test    # framing codec + command router, mocked core
-cd browser/extension  && npm test    # the QR encoder, two independent ways
+cd browser/extension  && npm test    # QR encoder, sender and Rewards checks, the price module
+node browser/extension/test/screenshots.mjs   # price display screenshots, headless Edge, no host, no network
 node browser/e2e/launcher-check.js   # the .cmd launcher, exactly as Chromium starts it
 node browser/e2e/e2e-mainnet.js      # a disposable wallet against live SWARM mainnet
 ```

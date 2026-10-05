@@ -14,9 +14,9 @@ script that pretends to be you inside a wallet is not something to build.
 1. Open Edge, go to **`edge://extensions`**.
 2. Turn **Developer mode** on (bottom left).
 3. Click **Load unpacked**.
-4. Choose
-   `D:\swarm-work\privacy-wallet-browser\browser\extension`
-5. The card should say **SWARM Wallet 0.1.0** and the ID should read
+4. Choose the `browser\extension` folder of the checkout you are testing
+   (for the price round: `D:\swarm-work\wallet-price-browser\browser\extension`).
+5. The card should say **SWARM Wallet 0.2.1** and the ID should read
    `gmmgmodmgnigcgboccjelpgedejejfap`. If the ID differs, the manifest key was
    changed and the host will refuse the connection.
 6. Pin it: puzzle-piece icon in the toolbar → pin **SWARM Wallet**.
@@ -34,6 +34,28 @@ Click the SWARM Wallet icon.
 If it instead says *The wallet host is not running*, the registry entry is
 missing or the path moved: run
 `browser\install\Install SWARM Browser Wallet (dev).cmd` again.
+
+## 2a. The SWM price (extension 0.2.1)
+
+Unlock first; the price lives on the wallet screen.
+
+- Under the balance: `≈ •••••• USD` while hidden, `≈ $… USD` after **Show**.
+- Below it a **SWM PRICE** card: an orange dot, the price (`$0.8411` style),
+  a green `▲ … % 24h` or red `▼ … % 24h` chip, a small orange line chart and
+  `Base · Uniswap v4 · GeckoTerminal · updated … s ago`.
+- **ⓘ** shows: "Indicative price from the SWM/ETH pool on Base. The pool is
+  small; small trades move it. Not a quote."
+- Clicking the card opens the pool on **dexscreener.com** in a new tab.
+- **Send**: typing an amount shows `≈ $… USD` under it, and the confirmation
+  screen repeats it.
+- **Settings → SWM price**: switch **Show SWM price (USD)** off, reopen the
+  popup: no card and no `≈ … USD` lines. Switch it back on.
+- Until the SWARM price service answers at
+  `https://wallet.swarm.green/api/price/swm`, the card reads **Price
+  unavailable**; nothing else is affected.
+
+The same states are in `extension\test\screenshots\` (made with
+`node test\screenshots.mjs`, fake data, no wallet).
 
 ## 3. Create a wallet (this is a real mainnet wallet)
 
