@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 
 import {
   PRICE_URL,
-  DEXSCREENER_FALLBACK_URL,
+  POOL_ID,
+  TOKEN_CONTRACT,
+  DEXSCREENER_URL,
+  GECKOTERMINAL_URL,
   MAX_BODY_CHARS,
   FRESHNESS,
   parseDecimal,
@@ -13,7 +16,10 @@ import {
   fiatCents,
   formatFiat,
   MASKED_FIAT,
-  safeListingUrl,
+  formatUsdValue,
+  formatEthPrice,
+  formatUsdAmount,
+  shortHex,
   parsePriceDocument,
   toStored,
   fromStored,
@@ -23,6 +29,12 @@ import {
   metaLine,
   formatChange,
   sparklinePaths,
+  chartGeometry,
+  nearestIndex,
+  rangeSeries,
+  availableRanges,
+  pickRange,
+  formatPointTime,
   fetchPrice,
 } from "../lib/price.js";
 
@@ -30,7 +42,8 @@ import {
 const SPEC_TEXT = readFileSync(new URL("./fixtures-price.json", import.meta.url), "utf8");
 const SPEC = JSON.parse(SPEC_TEXT);
 const T0 = 1791223633 * 1000; // the fixture's generated_unix, in ms
-const FULL_DEX = DEXSCREENER_FALLBACK_URL;
+/** One real answer of the live relay, read 2026-10-05 19:01 UTC. */
+const LIVE_TEXT = readFileSync(new URL("./fixtures-price-live.json", import.meta.url), "utf8");
 
 function doc(patch) {
   return JSON.stringify({ ...SPEC, ...patch });
@@ -48,13 +61,105 @@ test("the spec's relay answer parses", () => {
   assert.equal(r.reading.stale, false);
   assert.equal(r.reading.source, "geckoterminal");
   assert.equal(r.reading.fetchedAt, T0 + 500);
-  // The spec abbreviates the pool id with "…"; that is not a usable link, so the fixed one is used.
-  assert.equal(r.reading.dexscreener_url, FULL_DEX);
+  assert.equal(r.reading.price_eth, "0.000195976");
+  assert.equal(r.reading.change_pct_h1, 0);
+  assert.equal(r.reading.change_pct_h6, 28.75);
+  assert.equal(r.reading.liquidity_usd, 3761.34);
+  assert.equal(r.reading.volume_24h_usd, 378.11);
+  assert.equal(r.reading.fdv_usd, 8411.43);
+  assert.deepEqual(r.reading.sources, [
+    { id: "geckoterminal", ok: true, price_usd: "0.84114343", fetched_unix: 1791223633 },
+    { id: "dexscreener", ok: true, price_usd: "0.8602", fetched_unix: 1791223633 },
+  ]);
+  // Not in the §2.1 sample: absent, not invented.
+  assert.equal(r.reading.daily_usd, null);
+  assert.equal(r.reading.transactions_24h, null);
+  assert.equal(r.reading.fee_pct, null);
 });
 
-test("a full DexScreener link from the relay is kept", () => {
-  const r = parsePriceDocument(doc({ pool: { ...SPEC.pool, dexscreener_url: FULL_DEX } }), T0);
-  assert.equal(r.reading.dexscreener_url, FULL_DEX);
+test("the live relay's answer parses", () => {
+  const r = parsePriceDocument(LIVE_TEXT, 1791226888000);
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.reading.price_usd, "0.84114343498587");
+  assert.equal(r.reading.price_eth, "0.000195976178807639");
+  assert.equal(r.reading.sparkline_usd.length, 48);
+  assert.equal(formatUsdPrice(r.reading.price_usd), "$0.8411");
+  assert.equal(formatEthPrice(r.reading.price_eth), "0.000196 ETH");
+  assert.equal(r.reading.sources.length, 2);
+});
+
+test("the §6.1 additions parse, each checked on its own", () => {
+  const daily = Array.from({ length: 30 }, (_, i) => 0.3 + i / 100);
+  const r = parsePriceDocument(
+    doc({
+      daily_usd: daily,
+      daily_from_unix: 1788652800,
+      hourly_from_unix: 1791223633 - 5 * 3600,
+      transactions_24h: { buys: 9, sells: 0 },
+      pool: { ...SPEC.pool, fee_pct: 0.9, created_unix: 1790900000 },
+    }),
+    T0,
+  ).reading;
+  assert.deepEqual(r.daily_usd, daily);
+  assert.equal(r.daily_from_unix, 1788652800);
+  assert.equal(r.hourly_from_unix, 1791223633 - 5 * 3600);
+  assert.deepEqual(r.transactions_24h, { buys: 9, sells: 0 });
+  assert.equal(r.fee_pct, 0.9);
+  assert.equal(r.pool_created_unix, 1790900000);
+
+  const bad = parsePriceDocument(
+    doc({
+      price_eth: 0.0002,
+      change_pct: { h1: "1", h6: null, h24: 36.72 },
+      daily_usd: [0.5, -1],
+      daily_from_unix: "yesterday",
+      transactions_24h: { buys: -1, sells: 0 },
+      liquidity_usd: "3761",
+      volume_24h_usd: -5,
+      fdv_usd: Infinity,
+      pool: { fee_pct: 900, created_unix: 1.5 },
+      sources: [
+        { id: "evil", ok: true, price_usd: "1" },
+        { id: "dexscreener", ok: "yes", price_usd: "0.86" },
+        { id: "geckoterminal", ok: false, price_usd: "-1", fetched_unix: "x" },
+        { id: "geckoterminal", ok: true, price_usd: "0.84" },
+      ],
+    }),
+    T0,
+  );
+  assert.equal(bad.ok, true, "a bad optional field never costs the price");
+  const b = bad.reading;
+  assert.equal(b.price_eth, null);
+  assert.equal(b.change_pct_h1, null);
+  assert.equal(b.change_pct_h6, null);
+  assert.equal(b.change_pct_h24, 36.72);
+  assert.equal(b.daily_usd, null);
+  assert.equal(b.daily_from_unix, null);
+  assert.equal(b.transactions_24h, null);
+  assert.equal(b.liquidity_usd, null);
+  assert.equal(b.volume_24h_usd, null);
+  assert.equal(b.fdv_usd, null);
+  assert.equal(b.fee_pct, null);
+  assert.equal(b.pool_created_unix, null);
+  assert.deepEqual(b.sources, [{ id: "geckoterminal", ok: false, price_usd: null, fetched_unix: null }]);
+});
+
+test("a trimmed series keeps its start time honest", () => {
+  const long = Array.from({ length: 60 }, (_, i) => i + 1);
+  const r = parsePriceDocument(doc({ sparkline_usd: long, hourly_from_unix: 1000 * 3600 }), T0).reading;
+  assert.equal(r.sparkline_usd.length, 48);
+  assert.equal(r.hourly_from_unix, (1000 + 12) * 3600);
+});
+
+test("the listing links and the pool are fixed, whatever the relay says", () => {
+  const r = parsePriceDocument(doc({ pool: { dexscreener_url: "https://evil.example/" } }), T0).reading;
+  assert.equal("dexscreener_url" in r, false);
+  assert.equal(DEXSCREENER_URL, `https://dexscreener.com/base/${POOL_ID}`);
+  assert.equal(GECKOTERMINAL_URL, `https://www.geckoterminal.com/base/pools/${POOL_ID}`);
+  assert.equal(new URL(DEXSCREENER_URL).origin, "https://dexscreener.com");
+  assert.equal(new URL(GECKOTERMINAL_URL).origin, "https://www.geckoterminal.com");
+  assert.equal(shortHex(POOL_ID), "0xf1e0…4599");
+  assert.equal(shortHex(TOKEN_CONTRACT), "0xf904…043B");
 });
 
 test("malformed or mismatched answers are refused", () => {
@@ -99,24 +204,6 @@ test("missing change and unknown source are tolerated", () => {
   assert.equal(r.ok, true);
   assert.equal(r.reading.change_pct_h24, null);
   assert.equal(r.reading.source, null);
-});
-
-test("only https://dexscreener.com/base/0x… links are opened", () => {
-  const bad = [
-    "https://evil.example/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf9e2e8937ce9c2fe2960f4599",
-    "https://dexscreener.com.evil.example/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf",
-    "http://dexscreener.com/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf",
-    "https://user@dexscreener.com/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf",
-    "https://dexscreener.com:8443/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf",
-    "https://dexscreener.com/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf?ref=x",
-    "https://dexscreener.com/ethereum/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf",
-    "javascript:alert(1)",
-    "",
-    null,
-    42,
-  ];
-  for (const u of bad) assert.equal(safeListingUrl(u), FULL_DEX, String(u));
-  assert.equal(safeListingUrl(FULL_DEX), FULL_DEX);
 });
 
 /* ── numbers ────────────────────────────────────────────────────────── */
@@ -171,11 +258,30 @@ test("fiat value: balance × price in BigInt, rounded half-up to the cent", () =
   assert.equal(MASKED_FIAT, "≈ •••••• USD");
 });
 
+test("ETH price, stat amounts and series values", () => {
+  assert.equal(formatEthPrice("0.000195976"), "0.000196 ETH");
+  assert.equal(formatEthPrice("0.0009996"), "0.00100 ETH");
+  assert.equal(formatEthPrice("2.5"), "2.5000 ETH");
+  assert.equal(formatEthPrice("0"), null);
+  assert.equal(formatUsdAmount(3761.34), "$3,761");
+  assert.equal(formatUsdAmount(378.11), "$378.11");
+  assert.equal(formatUsdAmount(8411.43), "$8,411");
+  assert.equal(formatUsdAmount(0), "$0.00");
+  assert.equal(formatUsdAmount(null), "—");
+  assert.equal(formatUsdAmount(-1), "—");
+  assert.equal(formatUsdValue(0.573008), "$0.5730");
+  assert.equal(formatUsdValue(12.345), "$12.35");
+  assert.equal(formatUsdValue(0), null);
+  assert.equal(formatUsdValue(NaN), null);
+});
+
 test("24 h change chip", () => {
   assert.deepEqual(formatChange(36.72), { text: "▲ 36.7 % 24h", direction: "up" });
   assert.deepEqual(formatChange(-3.21), { text: "▼ 3.2 % 24h", direction: "down" });
   assert.deepEqual(formatChange(0), { text: "0.0 % 24h", direction: "flat" });
   assert.deepEqual(formatChange(-0.04), { text: "0.0 % 24h", direction: "flat" });
+  assert.deepEqual(formatChange(24.56, "6h"), { text: "▲ 24.6 % 6h", direction: "up" });
+  assert.deepEqual(formatChange(0, "1h"), { text: "0.0 % 1h", direction: "flat" });
   assert.equal(formatChange(null), null);
   assert.equal(formatChange(NaN), null);
 });
@@ -221,6 +327,29 @@ test("freshness wording", () => {
   assert.equal(metaLine(reading({ source: null }), T0 + 6 * 60_000, "UTC"), "Base · Uniswap v4 · as of 18:07");
 });
 
+test("the §6.1 fields survive storage, and are checked again on the way out", () => {
+  const r = parsePriceDocument(
+    doc({ daily_usd: [0.5, 0.6, 0.7], daily_from_unix: 1788652800, transactions_24h: { buys: 9, sells: 0 }, pool: { fee_pct: 0.9 } }),
+    T0,
+  ).reading;
+  const back = fromStored(JSON.parse(JSON.stringify(toStored(r))));
+  for (const k of ["price_eth", "change_pct_h1", "change_pct_h6", "liquidity_usd", "volume_24h_usd", "fdv_usd", "fee_pct", "daily_from_unix"]) {
+    assert.deepEqual(back[k], r[k], k);
+  }
+  assert.deepEqual(back.daily_usd, [0.5, 0.6, 0.7]);
+  assert.deepEqual(back.transactions_24h, { buys: 9, sells: 0 });
+  assert.deepEqual(back.sources, r.sources);
+  const tampered = fromStored({ ...toStored(r), daily_usd: ["x"], fee_pct: -3, sources: [{ id: "evil", ok: true }] });
+  assert.equal(tampered.daily_usd, null);
+  assert.equal(tampered.daily_from_unix, null, "no start time without a series");
+  assert.equal(tampered.fee_pct, null);
+  assert.equal(tampered.sources, null);
+  // A reading remembered by 0.2.1 (before §6.1) still loads.
+  const old = { price_usd: "0.84", change_pct_h24: 1, sparkline_usd: [1, 2], generated_unix: 1, stale: false, source: "geckoterminal", fetchedAt: 5 };
+  assert.equal(fromStored(old).price_eth, null);
+  assert.deepEqual(fromStored(old).sparkline_usd, [1, 2]);
+});
+
 test("storage round trip, and a tampered entry is refused", () => {
   const r = reading({ fetchedAt: T0 + 1 });
   const back = fromStored(JSON.parse(JSON.stringify(toStored(r))));
@@ -228,7 +357,6 @@ test("storage round trip, and a tampered entry is refused", () => {
   assert.equal(back.change_pct_h24, r.change_pct_h24);
   assert.deepEqual(back.sparkline_usd, r.sparkline_usd);
   assert.equal(back.fetchedAt, T0 + 1);
-  assert.equal(back.dexscreener_url, FULL_DEX);
   assert.equal(fromStored(null), null);
   assert.equal(fromStored({ ...toStored(r), price_usd: "-1" }), null);
   assert.equal(fromStored({ ...toStored(r), fetchedAt: "now" }), null);
@@ -245,6 +373,72 @@ test("sparkline paths: lowest at the bottom, highest at the top", () => {
   assert.equal(sparklinePaths([1], 100, 40), null);
   assert.equal(sparklinePaths(null, 100, 40), null);
   assert.equal(sparklinePaths(SPEC.sparkline_usd, 298, 44).line.split("L").length, 6);
+});
+
+test("chart geometry: points, extremes, guides", () => {
+  const g = chartGeometry([1, 3, 2, 0.5], { width: 300, height: 100, padTop: 10, padBottom: 20 });
+  assert.deepEqual(g.points, [
+    [0, 66],
+    [100, 10],
+    [200, 38],
+    [300, 80],
+  ]);
+  assert.equal(g.line, "M0 66 L100 10 L200 38 L300 80");
+  assert.equal(g.area, "M0 66 L100 10 L200 38 L300 80 L300 100 L0 100 Z");
+  assert.equal(g.minIndex, 3);
+  assert.equal(g.maxIndex, 1);
+  assert.equal(g.min, 0.5);
+  assert.equal(g.max, 3);
+  assert.deepEqual(g.guides, [27.5, 45, 62.5]);
+  const flat = chartGeometry([2, 2, 2], { width: 100, height: 100, padTop: 10, padBottom: 10 });
+  assert.deepEqual(flat.points.map((p) => p[1]), [50, 50, 50]);
+  assert.equal(chartGeometry([1], { width: 100, height: 100 }), null);
+  assert.equal(chartGeometry([1, NaN], { width: 100, height: 100 }), null);
+});
+
+test("hover: the nearest point to an x coordinate", () => {
+  assert.equal(nearestIndex(0, 24, 230), 0);
+  assert.equal(nearestIndex(230, 24, 230), 23);
+  assert.equal(nearestIndex(115, 24, 230), 12); // 11.5 rounds up
+  assert.equal(nearestIndex(-40, 24, 230), 0);
+  assert.equal(nearestIndex(999, 24, 230), 23);
+  assert.equal(nearestIndex(10, 0, 230), null);
+  assert.equal(nearestIndex(NaN, 24, 230), null);
+});
+
+test("ranges: 24h = last 24 hourly, 48h = all hourly, 30d = daily", () => {
+  const hourly = Array.from({ length: 48 }, (_, i) => 1 + i);
+  const daily = Array.from({ length: 30 }, (_, i) => 100 + i);
+  const from = 1791050000;
+  const r = { sparkline_usd: hourly, hourly_from_unix: from, daily_usd: daily, daily_from_unix: 1788652800 };
+  const day = rangeSeries(r, "24h");
+  assert.deepEqual(day.values, hourly.slice(-24));
+  assert.equal(day.times[0], (from + 24 * 3600) * 1000);
+  assert.equal(day.times[23], (from + 47 * 3600) * 1000);
+  assert.equal(day.daily, false);
+  assert.equal(rangeSeries(r, "48h").values.length, 48);
+  assert.equal(rangeSeries(r, "48h").times[0], from * 1000);
+  const month = rangeSeries(r, "30d");
+  assert.deepEqual(month.values, daily);
+  assert.equal(month.times[1] - month.times[0], 86400000);
+  assert.equal(month.daily, true);
+  assert.equal(rangeSeries(r, "7d"), null);
+
+  // No start time: values without times (the hover shows the value only).
+  assert.equal(rangeSeries({ sparkline_usd: hourly }, "24h").times, null);
+  // No daily series: 30d is disabled, and a wish for it falls back.
+  const noDaily = { sparkline_usd: hourly };
+  assert.deepEqual(availableRanges(noDaily), { "24h": true, "48h": true, "30d": false });
+  assert.equal(pickRange(noDaily, "30d"), "24h");
+  assert.equal(pickRange({ daily_usd: daily }, "24h"), "30d");
+  assert.equal(pickRange({}, "24h"), null);
+  assert.equal(pickRange(null, "24h"), null);
+});
+
+test("hover time labels", () => {
+  const ms = Date.UTC(2026, 9, 5, 14, 0);
+  assert.equal(formatPointTime(ms, false, "UTC"), "5 Oct, 14:00");
+  assert.equal(formatPointTime(ms, true, "UTC"), "5 Oct");
 });
 
 /* ── the request, with a fake fetch ─────────────────────────────────── */

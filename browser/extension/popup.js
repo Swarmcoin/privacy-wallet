@@ -25,7 +25,7 @@ import {
 } from "./common.js";
 import { encode, draw } from "./lib/qr.js";
 import {
-  DEXSCREENER_FALLBACK_URL,
+  DEXSCREENER_URL,
   FRESHNESS,
   LAST_PRICE_KEY,
   MASKED_FIAT,
@@ -409,8 +409,8 @@ function paintSendFiat() {
 }
 
 function openListing() {
-  // lib/price.js has already held the relay's link to https://dexscreener.com/base/0x…
-  const url = (price.reading && price.reading.dexscreener_url) || DEXSCREENER_FALLBACK_URL;
+  // A fixed URL (lib/price.js), never one from the relay.
+  const url = DEXSCREENER_URL;
   chrome.tabs.create({ url });
   window.close();
 }

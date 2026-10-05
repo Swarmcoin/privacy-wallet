@@ -4,23 +4,28 @@
  * This is the extension's one network request of its own: an unauthenticated
  * GET to a fixed SWARM URL, carrying no address, no balance and no identifier.
  * The URL is a constant here and nowhere else; it is never taken from a
- * setting, a message or the relay's own answer.
+ * setting, a message or the relay's own answer. The same goes for the two
+ * listing pages the price page links to: fixed here, never from the relay.
  *
  * Everything below except `fetchPrice` is pure, so it can be tested with
  * `node --test` without a browser. Money is done in BigInt on decimal strings:
  * the relay sends the price as a string precisely so it is never a float, and
  * the fiat value of a balance is computed from the balance's zatoshis. It is a
- * display value, not an accounting one.
+ * display value, not an accounting one. The chart series are floats; they
+ * only draw lines.
  */
 
 /** The relay. Fixed in code (spec §2.2); the manifest's CSP allows this host and no other. */
 export const PRICE_URL = "https://wallet.swarm.green/api/price/swm";
 export const PRICE_SCHEMA = "swarm-price/1";
 
-/** The listing page opened when the card is clicked, when the relay's own link does not check out. */
-export const DEXSCREENER_FALLBACK_URL =
-  "https://dexscreener.com/base/0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf9e2e8937ce9c2fe2960f4599";
-const DEXSCREENER_ORIGIN = "https://dexscreener.com";
+/** The pool and the token (spec §1). Shown and copied from here, never from the relay. */
+export const POOL_ID = "0xf1e066d77279b388b40fdca7f5cf4a6559f77bdf9e2e8937ce9c2fe2960f4599";
+export const TOKEN_CONTRACT = "0xf904C14d21bEF5b8a5345a666C77C9cc2A24043B";
+
+/** The listing pages the price page opens (spec §1, §6.2). Fixed hosts, fixed paths. */
+export const DEXSCREENER_URL = `https://dexscreener.com/base/${POOL_ID}`;
+export const GECKOTERMINAL_URL = `https://www.geckoterminal.com/base/pools/${POOL_ID}`;
 
 export const PRICE_NOTE =
   "Indicative price from the SWM/ETH pool on Base. The pool is small; small trades move it. Not a quote.";
@@ -46,8 +51,11 @@ export const FRESHNESS = Object.freeze({
   UNAVAILABLE: "unavailable",
 });
 
-const SPARK_MAX_POINTS = 48;
-const SOURCE_NAMES = { geckoterminal: "GeckoTerminal", dexscreener: "DexScreener" };
+const HOURLY_MAX_POINTS = 48;
+const DAILY_MAX_POINTS = 30;
+const HOUR_S = 3600;
+const DAY_S = 86400;
+export const SOURCE_NAMES = Object.freeze({ geckoterminal: "GeckoTerminal", dexscreener: "DexScreener" });
 
 /* ── decimals ─────────────────────────────────────────────────────────── */
 
@@ -90,6 +98,24 @@ function formatHundredths(cents) {
 }
 
 /**
+ * A positive decimal under one, to `sig` significant digits, half-up:
+ * "0.000195976" at 3 -> "0.000196". Returns null when rounding reaches 1.
+ */
+function underOne(d, sig) {
+  const digits = d.int.toString().length;
+  const leadingZeros = d.scale - digits; // zeros between the point and the first digit
+  let decimals = leadingZeros + sig;
+  let rounded = divRoundHalfUp(d.int, d.scale - decimals);
+  if (rounded >= 10n ** BigInt(decimals)) return null; // 0.99996 -> 1
+  if (rounded.toString().length > sig) {
+    // 0.0099996 -> 0.01000: the carry added a significant digit; drop one decimal.
+    rounded = divRoundHalfUp(rounded, 1);
+    decimals -= 1;
+  }
+  return `0.${rounded.toString().padStart(decimals, "0")}`;
+}
+
+/**
  * The price as the card shows it: two decimals at 1 USD or more
  * ("$1.50", "$12,345.68"), otherwise four significant digits ("$0.8411",
  * "$0.00001235"). Rounded half-up. Null for anything that is not a positive
@@ -98,25 +124,39 @@ function formatHundredths(cents) {
 export function formatUsdPrice(text) {
   const d = parseDecimal(text);
   if (!d || d.int <= 0n) return null;
-  const one = 10n ** BigInt(d.scale);
-  if (d.int >= one) {
-    return `$${formatHundredths(divRoundHalfUp(d.int, d.scale - 2))}`;
+  if (d.int < 10n ** BigInt(d.scale)) {
+    const small = underOne(d, 4);
+    if (small) return `$${small}`;
   }
-  // Under one: keep four significant digits.
-  const digits = d.int.toString().length;
-  const leadingZeros = d.scale - digits; // zeros between the point and the first digit
-  let decimals = leadingZeros + 4;
-  let rounded = divRoundHalfUp(d.int, d.scale - decimals);
-  if (rounded >= 10n ** BigInt(decimals)) {
-    // 0.99996 -> 1.00: the rounding carried into the units.
-    return `$${formatHundredths(divRoundHalfUp(rounded, decimals - 2))}`;
+  return `$${formatHundredths(divRoundHalfUp(d.int, d.scale - 2))}`;
+}
+
+/** A float from a chart series, formatted like a price ("$0.8106"). */
+export function formatUsdValue(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value >= 1e15) return null;
+  return formatUsdPrice(value.toFixed(12));
+}
+
+/** The price in ETH: three significant digits under 1 ("0.000196 ETH"), four decimals above. */
+export function formatEthPrice(text) {
+  const d = parseDecimal(text);
+  if (!d || d.int <= 0n) return null;
+  if (d.int < 10n ** BigInt(d.scale)) {
+    const small = underOne(d, 3);
+    if (small) return `${small} ETH`;
   }
-  if (rounded.toString().length > 4) {
-    // 0.0099996 -> 0.01000: the carry added a significant digit; drop one decimal.
-    rounded = divRoundHalfUp(rounded, 1);
-    decimals -= 1;
-  }
-  return `$0.${rounded.toString().padStart(decimals, "0")}`;
+  const tenThousandths = divRoundHalfUp(d.int, d.scale - 4);
+  const whole = tenThousandths / 10000n;
+  const frac = (tenThousandths % 10000n).toString().padStart(4, "0");
+  return `${groupThousands(whole.toString())}.${frac} ETH`;
+}
+
+/** Whole dollars from 1,000 ("$3,761"), cents below ("$378.11"); "—" when unknown. */
+export function formatUsdAmount(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value >= 1e15) return "—";
+  if (value >= 1000) return `$${groupThousands(Math.round(value).toString())}`;
+  const cents = BigInt(Math.round(value * 100));
+  return `$${formatHundredths(cents)}`;
 }
 
 /**
@@ -150,34 +190,34 @@ export function formatFiat(coins, priceText) {
 /** The fiat line while balances are hidden. The price itself is never masked; the value is. */
 export const MASKED_FIAT = "≈ •••••• USD";
 
-/* ── the relay's document ─────────────────────────────────────────────── */
-
-/**
- * The listing link to open. Only https://dexscreener.com, no credentials, no
- * port, no query, a /base/0x… path; anything else is the fixed URL.
- */
-export function safeListingUrl(candidate) {
-  if (typeof candidate !== "string" || candidate.length > 256) return DEXSCREENER_FALLBACK_URL;
-  let u;
-  try {
-    u = new URL(candidate);
-  } catch (_) {
-    return DEXSCREENER_FALLBACK_URL;
-  }
-  if (u.origin !== DEXSCREENER_ORIGIN || u.username || u.password || u.search || u.hash) {
-    return DEXSCREENER_FALLBACK_URL;
-  }
-  if (!/^\/base\/0x[0-9a-fA-F]{40,64}$/.test(u.pathname)) return DEXSCREENER_FALLBACK_URL;
-  return u.href;
+/** "0xf1e0…4599". */
+export function shortHex(hex, head = 6, tail = 4) {
+  const s = String(hex || "");
+  return s.length <= head + tail + 1 ? s : `${s.slice(0, head)}…${s.slice(-tail)}`;
 }
+
+/* ── the relay's document ─────────────────────────────────────────────── */
 
 function finiteOrNull(v) {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function cleanSparkline(list) {
+function nonNegativeOrNull(v) {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+function unixOrNull(v) {
+  return Number.isSafeInteger(v) && v > 0 ? v : null;
+}
+
+function countOrNull(v) {
+  return Number.isSafeInteger(v) && v >= 0 ? v : null;
+}
+
+/** A series of positive finite numbers, its last `max` values, or null under two. */
+function cleanSeries(list, max) {
   if (!Array.isArray(list)) return null;
-  const tail = list.slice(-SPARK_MAX_POINTS);
+  const tail = list.slice(-max);
   if (tail.length < 2) return null;
   for (const v of tail) {
     if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null;
@@ -187,6 +227,78 @@ function cleanSparkline(list) {
 
 function knownSource(id) {
   return typeof id === "string" && Object.prototype.hasOwnProperty.call(SOURCE_NAMES, id) ? id : null;
+}
+
+/**
+ * The first point's time, corrected for the values cut off the front:
+ * when a series was trimmed to its last `kept` values, its start moves on.
+ */
+function startAfterTrim(fromUnix, originalLength, kept, stepS) {
+  if (fromUnix === null || kept === null) return null;
+  return fromUnix + (originalLength - kept.length) * stepS;
+}
+
+function cleanTransactions(t) {
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const buys = countOrNull(t.buys);
+  const sells = countOrNull(t.sells);
+  return buys === null || sells === null ? null : { buys, sells };
+}
+
+/** One row per known aggregator, at most once each; unknown ids are dropped. */
+function cleanSources(list) {
+  if (!Array.isArray(list)) return null;
+  const out = [];
+  for (const s of list.slice(0, 8)) {
+    if (!s || typeof s !== "object") continue;
+    const id = knownSource(s.id);
+    if (!id || out.some((o) => o.id === id) || typeof s.ok !== "boolean") continue;
+    out.push({
+      id,
+      ok: s.ok,
+      price_usd: isPositiveDecimal(s.price_usd) ? s.price_usd : null,
+      fetched_unix: unixOrNull(s.fetched_unix),
+    });
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * The optional fields of spec §6.1, each checked on its own: one bad field is
+ * dropped (null), it does not cost the price. `flat` is either a relay
+ * document or a stored reading; the two name these fields differently only
+ * where the relay nests them.
+ */
+function extrasFrom(src, fromRelay) {
+  const change = fromRelay && src.change_pct && typeof src.change_pct === "object" ? src.change_pct : {};
+  const pool = fromRelay && src.pool && typeof src.pool === "object" ? src.pool : {};
+  const hourlyRaw = fromRelay ? src.sparkline_usd : src.sparkline_usd;
+  const dailyRaw = src.daily_usd;
+  const hourly = cleanSeries(hourlyRaw, HOURLY_MAX_POINTS);
+  const daily = cleanSeries(dailyRaw, DAILY_MAX_POINTS);
+  const fee = fromRelay ? pool.fee_pct : src.fee_pct;
+  return {
+    price_eth: isPositiveDecimal(src.price_eth) ? src.price_eth : null,
+    change_pct_h1: finiteOrNull(fromRelay ? change.h1 : src.change_pct_h1),
+    change_pct_h6: finiteOrNull(fromRelay ? change.h6 : src.change_pct_h6),
+    change_pct_h24: finiteOrNull(fromRelay ? change.h24 : src.change_pct_h24),
+    sparkline_usd: hourly,
+    hourly_from_unix: fromRelay
+      ? startAfterTrim(unixOrNull(src.hourly_from_unix), Array.isArray(hourlyRaw) ? hourlyRaw.length : 0, hourly, HOUR_S)
+      : hourly && unixOrNull(src.hourly_from_unix),
+    daily_usd: daily,
+    daily_from_unix: fromRelay
+      ? startAfterTrim(unixOrNull(src.daily_from_unix), Array.isArray(dailyRaw) ? dailyRaw.length : 0, daily, DAY_S)
+      : daily && unixOrNull(src.daily_from_unix),
+    transactions_24h: cleanTransactions(src.transactions_24h),
+    liquidity_usd: nonNegativeOrNull(src.liquidity_usd),
+    volume_24h_usd: nonNegativeOrNull(src.volume_24h_usd),
+    fdv_usd: nonNegativeOrNull(src.fdv_usd),
+    fee_pct: typeof fee === "number" && Number.isFinite(fee) && fee >= 0 && fee <= 100 ? fee : null,
+    pool_created_unix: unixOrNull(fromRelay ? pool.created_unix : src.pool_created_unix),
+    sources: cleanSources(src.sources),
+    source: knownSource(src.source),
+  };
 }
 
 /**
@@ -213,33 +325,46 @@ export function parsePriceDocument(text, fetchedAt) {
     return { ok: false, error: "no generation time" };
   }
   if (doc.stale !== undefined && typeof doc.stale !== "boolean") return { ok: false, error: "bad stale flag" };
-  const change = doc.change_pct && typeof doc.change_pct === "object" ? finiteOrNull(doc.change_pct.h24) : null;
   return {
     ok: true,
     reading: {
       price_usd: doc.price_usd,
-      change_pct_h24: change,
-      sparkline_usd: cleanSparkline(doc.sparkline_usd),
       generated_unix: doc.generated_unix,
       stale: doc.stale === true,
-      source: knownSource(doc.source),
-      dexscreener_url: safeListingUrl(doc.pool && doc.pool.dexscreener_url),
       fetchedAt,
+      ...extrasFrom(doc, true),
     },
   };
 }
 
-/** The shape kept in chrome.storage.local under `swmPriceLast`. */
+const STORED_FIELDS = [
+  "price_usd",
+  "generated_unix",
+  "stale",
+  "fetchedAt",
+  "price_eth",
+  "change_pct_h1",
+  "change_pct_h6",
+  "change_pct_h24",
+  "sparkline_usd",
+  "hourly_from_unix",
+  "daily_usd",
+  "daily_from_unix",
+  "transactions_24h",
+  "liquidity_usd",
+  "volume_24h_usd",
+  "fdv_usd",
+  "fee_pct",
+  "pool_created_unix",
+  "sources",
+  "source",
+];
+
+/** The shape kept in chrome.storage.local under `swmPriceLast`: the reading's own fields, flat. */
 export function toStored(reading) {
-  return {
-    price_usd: reading.price_usd,
-    change_pct_h24: reading.change_pct_h24,
-    sparkline_usd: reading.sparkline_usd,
-    generated_unix: reading.generated_unix,
-    stale: reading.stale,
-    source: reading.source,
-    fetchedAt: reading.fetchedAt,
-  };
+  const out = {};
+  for (const k of STORED_FIELDS) out[k] = reading[k] === undefined ? null : reading[k];
+  return out;
 }
 
 /** A stored reading, checked again on the way out: storage is not a trusted source either. */
@@ -250,13 +375,10 @@ export function fromStored(stored) {
   if (typeof stored.fetchedAt !== "number" || !Number.isFinite(stored.fetchedAt)) return null;
   return {
     price_usd: stored.price_usd,
-    change_pct_h24: finiteOrNull(stored.change_pct_h24),
-    sparkline_usd: cleanSparkline(stored.sparkline_usd),
     generated_unix: stored.generated_unix,
     stale: stored.stale === true,
-    source: knownSource(stored.source),
-    dexscreener_url: DEXSCREENER_FALLBACK_URL,
     fetchedAt: stored.fetchedAt,
+    ...extrasFrom(stored, false),
   };
 }
 
@@ -309,38 +431,117 @@ export function metaLine(reading, nowMs, timeZone) {
   return parts.join(" · ");
 }
 
-/** The 24 h change chip: "▲ 36.7 % 24h" up, "▼ 3.2 % 24h" down, "0.0 % 24h" flat; null when unknown. */
-export function formatChange(pct) {
+/** A change chip: "▲ 36.7 % 24h" up, "▼ 3.2 % 6h" down, "0.0 % 1h" flat; null when unknown. */
+export function formatChange(pct, label = "24h") {
   if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
   const rounded = Math.round(Math.abs(pct) * 10) / 10;
-  if (rounded === 0) return { text: "0.0 % 24h", direction: "flat" };
-  const text = `${rounded.toFixed(1)} % 24h`;
+  if (rounded === 0) return { text: `0.0 % ${label}`, direction: "flat" };
+  const text = `${rounded.toFixed(1)} % ${label}`;
   return pct > 0 ? { text: `▲ ${text}`, direction: "up" } : { text: `▼ ${text}`, direction: "down" };
 }
 
-/* ── sparkline ────────────────────────────────────────────────────────── */
+/* ── chart ranges ─────────────────────────────────────────────────────── */
+
+export const RANGES = Object.freeze(["24h", "48h", "30d"]);
 
 /**
- * SVG path data for the sparkline in a `width` × `height` box: `line` for the
- * stroke, `area` for the gradient fill underneath. Null under two points. A
- * flat series draws a level line through the middle.
+ * The values (and their times, when the relay said when the series starts)
+ * for one range of the price page's chart, or null when the range has no data:
+ * 24h = the last 24 hourly closes, 48h = all hourly, 30d = the daily closes.
  */
-export function sparklinePaths(values, width, height, pad = 2) {
-  const v = cleanSparkline(values);
-  if (!v) return null;
-  const min = Math.min(...v);
-  const max = Math.max(...v);
+export function rangeSeries(reading, range) {
+  if (!reading) return null;
+  let values;
+  let fromUnix;
+  let stepS;
+  if (range === "24h" || range === "48h") {
+    const all = reading.sparkline_usd;
+    if (!all) return null;
+    values = range === "24h" ? all.slice(-24) : all;
+    fromUnix = reading.hourly_from_unix ? reading.hourly_from_unix + (all.length - values.length) * HOUR_S : null;
+    stepS = HOUR_S;
+  } else if (range === "30d") {
+    values = reading.daily_usd;
+    if (!values) return null;
+    fromUnix = reading.daily_from_unix || null;
+    stepS = DAY_S;
+  } else {
+    return null;
+  }
+  if (!values || values.length < 2) return null;
+  const times = fromUnix ? values.map((_, i) => (fromUnix + i * stepS) * 1000) : null;
+  return { range, values, times, daily: range === "30d" };
+}
+
+/** Which ranges have data: { "24h": true, "48h": true, "30d": false }. */
+export function availableRanges(reading) {
+  const out = {};
+  for (const r of RANGES) out[r] = !!rangeSeries(reading, r);
+  return out;
+}
+
+/** The range to show: the wanted one if it has data, else the first that does, else null. */
+export function pickRange(reading, wanted) {
+  const ok = availableRanges(reading);
+  if (wanted && ok[wanted]) return wanted;
+  return RANGES.find((r) => ok[r]) || null;
+}
+
+/** "5 Oct, 14:00" for an hourly point, "5 Oct" for a daily one. */
+export function formatPointTime(ms, daily, timeZone) {
+  const d = new Date(ms);
+  const day = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone });
+  return daily ? day : `${day}, ${clockTime(ms, timeZone)}`;
+}
+
+/* ── chart geometry ───────────────────────────────────────────────────── */
+
+const r2 = (n) => Math.round(n * 100) / 100;
+
+/**
+ * Everything the chart draws, in a `width` × `height` box with `padTop` /
+ * `padBottom` kept clear: the point coordinates, the stroke path, the area
+ * path for the gradient, where the lowest and highest value are, and three
+ * faint guides at a quarter, half and three quarters of the plot. Null under
+ * two points. A flat series draws a level line through the middle.
+ */
+export function chartGeometry(values, { width, height, padTop = 2, padBottom = 2 }) {
+  if (!Array.isArray(values) || values.length < 2) return null;
+  for (const v of values) if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  let minIndex = 0;
+  let maxIndex = 0;
+  values.forEach((v, i) => {
+    if (v < values[minIndex]) minIndex = i;
+    if (v > values[maxIndex]) maxIndex = i;
+  });
+  const min = values[minIndex];
+  const max = values[maxIndex];
   const span = max - min;
-  const innerH = height - 2 * pad;
-  const stepX = width / (v.length - 1);
-  const r = (n) => Math.round(n * 100) / 100;
-  const points = v.map((value, i) => [
-    r(i * stepX),
-    r(span === 0 ? height / 2 : pad + innerH - ((value - min) / span) * innerH),
-  ]);
+  const top = padTop;
+  const bottom = height - padBottom;
+  const innerH = bottom - top;
+  const stepX = width / (values.length - 1);
+  const points = values.map((v, i) => [r2(i * stepX), r2(span === 0 ? top + innerH / 2 : bottom - ((v - min) / span) * innerH)]);
   const line = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x} ${y}`).join(" ");
-  const area = `${line} L${r(width)} ${height} L0 ${height} Z`;
-  return { line, area };
+  const area = `${line} L${r2(width)} ${height} L0 ${height} Z`;
+  const guides = [0.25, 0.5, 0.75].map((f) => r2(top + innerH * f));
+  return { points, line, area, min, max, minIndex, maxIndex, guides };
+}
+
+/** SVG path data for the card's small sparkline: { line, area }, or null. */
+export function sparklinePaths(values, width, height, pad = 2) {
+  const v = cleanSeries(values, HOURLY_MAX_POINTS);
+  if (!v) return null;
+  const g = chartGeometry(v, { width, height, padTop: pad, padBottom: pad });
+  return { line: g.line, area: g.area };
+}
+
+/** The point under an x coordinate (in the same units as `width`), for the hover readout. */
+export function nearestIndex(x, count, width) {
+  if (!(count > 0) || !(width > 0) || !Number.isFinite(x)) return null;
+  if (count === 1) return 0;
+  const i = Math.round((x / width) * (count - 1));
+  return Math.min(count - 1, Math.max(0, i));
 }
 
 /* ── the request ──────────────────────────────────────────────────────── */
