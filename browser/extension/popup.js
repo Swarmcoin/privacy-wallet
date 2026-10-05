@@ -378,7 +378,7 @@ function paintPrice() {
     show(el("price-unit"), waiting);
     show(chip, false);
     paintSparkline(null);
-    setText("price-meta", keepTogether(r ? `Base · Uniswap v4 · last reading ${clockTime(r.fetchedAt)}` : "Base · Uniswap v4"));
+    setText("price-meta", r ? keepTogether(`last reading ${clockTime(r.fetchedAt)}`) : "");
   }
   if (onPage) paintPricePage({ now, r, freshness, usable, greyed, dotKind });
   price.landed = false;
@@ -442,7 +442,6 @@ function paintPricePage(look) {
   show(el("pp-stats"), usable);
   if (usable) {
     paintChart(r);
-    setText("pp-liquidity", formatUsdAmount(r.liquidity_usd));
     setText("pp-volume", formatUsdAmount(r.volume_24h_usd));
     setText("pp-fdv", formatUsdAmount(r.fdv_usd));
     setText("pp-trades", r.transactions_24h ? `${r.transactions_24h.buys} / ${r.transactions_24h.sells}` : "—");

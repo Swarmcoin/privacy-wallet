@@ -102,8 +102,8 @@ CDN. Everything that reaches the SWARM network goes through the host.
 
 ## The SWM price
 
-Extension 0.2.1 (the host stays 0.2.0; nothing in it changed) shows the SWM
-price, as `specs/PRICE-DISPLAY.md` in the project repository describes:
+Extension 0.2.1 added the SWM price and 0.2.2 its page (the host stays
+0.2.0; nothing in it changed). It shows the SWM price, as `specs/PRICE-DISPLAY.md` in the project repository describes:
 
 - **Where it comes from.** One unauthenticated `GET
   https://wallet.swarm.green/api/price/swm` a minute, from the popup itself
@@ -124,10 +124,12 @@ price, as `specs/PRICE-DISPLAY.md` in the project repository describes:
   amount and on the confirmation screen. The card opens the **price page**
   (spec §6): price in USD and ETH, 1h/6h/24h change, a chart with
   24h/48h/30d ranges and a hover readout, your balance (masked with it),
-  pool statistics, both aggregators' readings, the pool id and token contract
+  pool statistics (24 h volume, fully diluted value, buys / sells, pool
+  fee), both aggregators' readings, the pool id and token contract
   with copy buttons, links to DexScreener and GeckoTerminal (fixed URLs, never
-  taken from the relay), the note and the same on/off switch as Settings. The value is shielded balance × price in BigInt arithmetic on the
-  zatoshi amount, rounded half-up to the cent: a display, not a quote.
+  taken from the relay), the note and the same on/off switch as Settings.
+  The value is shielded balance × price in BigInt arithmetic on the zatoshi
+  amount, rounded half-up to the cent: a display, not a quote.
 - **Freshness.** Fresh under 5 minutes; 5–30 minutes "as of hh:mm"; over 30
   minutes, or when the relay says `stale`, greyed; over 60 minutes "Price
   unavailable". The last good reading is kept in `chrome.storage.local`

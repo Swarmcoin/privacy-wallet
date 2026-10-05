@@ -429,9 +429,9 @@ export function freshnessText(reading, nowMs, timeZone) {
   return `as of ${clockTime(at, timeZone)}`;
 }
 
-/** "Base · Uniswap v4 · GeckoTerminal · updated 12 s ago". */
+/** "GeckoTerminal · updated 12 s ago" (spec §3 as amended 2026-10-05: no chain or DEX shown). */
 export function metaLine(reading, nowMs, timeZone) {
-  const parts = ["Base", "Uniswap v4"];
+  const parts = [];
   if (reading && reading.source) parts.push(SOURCE_NAMES[reading.source]);
   parts.push(freshnessText(reading, nowMs, timeZone));
   return parts.join(" · ");
