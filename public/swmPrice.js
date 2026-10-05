@@ -41,8 +41,12 @@ const SWM_LISTING_URLS = Object.freeze({
 // beyond one, at most 12 whole digits and 18 decimals. "0" and "0.000" match
 // the shape and are refused separately, because a price of zero is not a price.
 const DECIMAL_PATTERN = /^(0|[1-9]\d{0,11})(\.\d{1,18})?$/;
-const SPARKLINE_MAX_POINTS = 48;
-const DAILY_MAX_POINTS = 30;
+// 48 hourly / 30 daily closes, plus the live price the relay appends as the
+// last value of each series (specs/PRICE-DISPLAY.md §6.1).
+const HOURLY_CLOSES = 48;
+const DAILY_CLOSES = 30;
+const SPARKLINE_MAX_POINTS = HOURLY_CLOSES + 1;
+const DAILY_MAX_POINTS = DAILY_CLOSES + 1;
 const KNOWN_SOURCES = new Set(["geckoterminal", "dexscreener"]);
 
 function isPositiveDecimal(value) {
@@ -105,16 +109,29 @@ function readDetails(body) {
     if (start === null || !Array.isArray(series)) return null;
     return start + Math.max(0, series.length - max) * step;
   };
-  const hourlyFrom = seriesOrNull(body.sparkline_usd, SPARKLINE_MAX_POINTS)
-    ? shift(body.hourly_from_unix, body.sparkline_usd, SPARKLINE_MAX_POINTS, 3600)
-    : null;
+  const hourly = seriesOrNull(body.sparkline_usd, SPARKLINE_MAX_POINTS);
+  const hourlyFrom = hourly ? shift(body.hourly_from_unix, body.sparkline_usd, SPARKLINE_MAX_POINTS, 3600) : null;
+  const dailyFrom = daily ? shift(body.daily_from_unix, body.daily_usd, DAILY_MAX_POINTS, 86400) : null;
+  // Whether a series' last value is the live price rather than a close. With
+  // a start time: a close that would begin after the relay generated its
+  // answer is no close, so it is the live point. Without one: a series one
+  // longer than its close count ends at the live price.
+  const endsLive = (series, from, step, closes) => {
+    if (!series) return false;
+    if (from !== null && Number.isInteger(body.generated_unix)) {
+      return from + (series.length - 1) * step > body.generated_unix;
+    }
+    return series.length === closes + 1;
+  };
   return {
     priceEth: isPositiveDecimal(body.price_eth) ? body.price_eth : null,
     changePct1h: finiteOrNull(change.h1, -100, 1_000_000),
     changePct6h: finiteOrNull(change.h6, -100, 1_000_000),
     hourlyFromUnix: hourlyFrom,
+    hourlyEndsLive: endsLive(hourly, hourlyFrom, 3600, HOURLY_CLOSES),
     dailyUsd: daily,
-    dailyFromUnix: daily ? shift(body.daily_from_unix, body.daily_usd, DAILY_MAX_POINTS, 86400) : null,
+    dailyFromUnix: dailyFrom,
+    dailyEndsLive: endsLive(daily, dailyFrom, 86400, DAILY_CLOSES),
     transactions24h: buys !== null && sells !== null ? { buys, sells } : null,
     liquidityUsd: finiteOrNull(body.liquidity_usd, 0, MAX_USD),
     volume24hUsd: finiteOrNull(body.volume_24h_usd, 0, MAX_USD),

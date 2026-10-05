@@ -14,7 +14,11 @@ import type { SwmPriceState } from "../../../price/swmPriceTypes";
 export type SwmChartRange = "24h" | "48h" | "30d";
 export const SWM_CHART_RANGES: SwmChartRange[] = ["24h", "48h", "30d"];
 
-export type SwmChartSeries = { points: number[]; times: number[]; daily: boolean };
+/**
+ * `endsLive`: the last point is the live price the relay appends (§6.1), not a
+ * close; its time is the relay's generation time and its readout says "now".
+ */
+export type SwmChartSeries = { points: number[]; times: number[]; daily: boolean; endsLive: boolean };
 
 const HOUR = 3600;
 const DAY = 86400;
@@ -27,19 +31,34 @@ const DAY = 86400;
  */
 export function seriesFor(range: SwmChartRange, price: SwmPriceState): SwmChartSeries | null {
   const generated = price.generatedUnix ?? Math.floor(Date.now() / 1000);
+  const build = (values: number[], fromUnix: number | null, step: number, endsLive: boolean, daily: boolean) => {
+    const closes = endsLive ? values.length - 1 : values.length;
+    // Without a start time, the last close is pinned to the period the relay
+    // generated its answer in.
+    const from = fromUnix ?? Math.floor(generated / step) * step - (closes - 1) * step;
+    const times = values.map((_, i) => (endsLive && i === values.length - 1 ? generated : from + i * step));
+    return { points: values, times, daily, endsLive };
+  };
   if (range === "30d") {
     const daily = price.details?.dailyUsd ?? null;
     if (!daily || daily.length < 2) return null;
-    const from = price.details?.dailyFromUnix ?? Math.floor(generated / DAY) * DAY - (daily.length - 1) * DAY;
-    return { points: daily, times: daily.map((_, i) => from + i * DAY), daily: true };
+    return build(daily, price.details?.dailyFromUnix ?? null, DAY, !!price.details?.dailyEndsLive, true);
   }
   const hourly = price.sparklineUsd;
   if (!hourly || hourly.length < 2) return null;
-  const from = price.details?.hourlyFromUnix ?? Math.floor(generated / HOUR) * HOUR - (hourly.length - 1) * HOUR;
-  const all = { points: hourly, times: hourly.map((_, i) => from + i * HOUR), daily: false };
+  const all = build(hourly, price.details?.hourlyFromUnix ?? null, HOUR, !!price.details?.hourlyEndsLive, false);
   if (range === "48h") return all;
-  if (hourly.length <= 24) return all;
-  return { points: all.points.slice(-24), times: all.times.slice(-24), daily: false };
+  // 24h: the last 24 closes, and the live price after them when there is one.
+  const keep = all.endsLive ? 25 : 24;
+  if (hourly.length <= keep) return all;
+  return { ...all, points: all.points.slice(-keep), times: all.times.slice(-keep) };
+}
+
+/** A point's time as the chart writes it: "now" for the live price. */
+export function pointLabel(series: SwmChartSeries, index: number): string {
+  return series.endsLive && index === series.points.length - 1
+    ? "now"
+    : formatPointTime(series.times[index], series.daily);
 }
 
 /** The range to open on: 48h when there is hourly data, else 30d, else 24h (all disabled). */
@@ -71,7 +90,7 @@ export const SwmPriceChart: React.FC<{ price: SwmPriceState; dim?: boolean }> = 
   if (!series) {
     body = <div className={styles.chartEmpty}>No price history for this range yet.</div>;
   } else {
-    const { points, times, daily } = series;
+    const { points } = series;
     const min = Math.min(...points);
     const max = Math.max(...points);
     const step = W / (points.length - 1);
@@ -152,14 +171,14 @@ export const SwmPriceChart: React.FC<{ price: SwmPriceState; dim?: boolean }> = 
                 data-testid="swm-chart-readout"
               >
                 <strong>{formatUsdPrice(String(points[at]))}</strong>
-                <span>{formatPointTime(times[at], daily)}</span>
+                <span>{pointLabel(series, at)}</span>
               </span>
             </>
           )}
         </div>
         <div className={styles.chartTimes} aria-hidden="true">
-          <span>{formatPointTime(times[0], daily)}</span>
-          <span>{formatPointTime(times[last], daily)}</span>
+          <span>{pointLabel(series, 0)}</span>
+          <span>{pointLabel(series, last)}</span>
         </div>
       </div>
     );

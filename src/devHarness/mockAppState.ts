@@ -333,8 +333,9 @@ export function mockSwmPrice(kind: string | null): SwmPriceState | null {
   hourly[47] = 0.8411;
   const daily = wave(30, 0.31, 0.8411, 0.08);
   daily[29] = 0.8411;
-  const hourStart = Math.floor(now / 3600) * 3600 - 47 * 3600;
-  const dayStart = Math.floor(now / 86400) * 86400 - 29 * 86400;
+  // The last value of each series is the live price (§6.1), after 47 hourly / 29 daily closes.
+  const hourStart = Math.floor(now / 3600) * 3600 - 46 * 3600;
+  const dayStart = Math.floor(now / 86400) * 86400 - 28 * 86400;
   const fresh: SwmPriceState = {
     priceUsd: "0.84114343",
     changePct24h: 36.72,
@@ -349,6 +350,8 @@ export function mockSwmPrice(kind: string | null): SwmPriceState | null {
       changePct1h: 0,
       changePct6h: 28.75,
       hourlyFromUnix: hourStart,
+      hourlyEndsLive: true,
+      dailyEndsLive: true,
       dailyUsd: daily,
       dailyFromUnix: dayStart,
       transactions24h: { buys: 9, sells: 0 },

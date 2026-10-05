@@ -285,6 +285,8 @@ describe("stored page fields", () => {
     changePct1h: 0,
     changePct6h: 28.75,
     hourlyFromUnix: 1791054000,
+    hourlyEndsLive: true,
+    dailyEndsLive: false,
     dailyUsd: [0.3, 0.5, 0.8411],
     dailyFromUnix: 1788739200,
     transactions24h: { buys: 9, sells: 0 },

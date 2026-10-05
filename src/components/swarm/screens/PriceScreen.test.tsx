@@ -12,7 +12,7 @@ import { AppState, TotalBalanceClass } from "../../appstate";
 import SwarmUiContext from "../SwarmUiContext";
 import { clipboard, price as priceBridge } from "../../../electronBridge";
 import { PriceScreen } from "./PriceScreen";
-import { seriesFor } from "../components/SwmPriceChart";
+import { SwmChartSeries, pointLabel, seriesFor } from "../components/SwmPriceChart";
 import { SWM_PRICE_OFF, SwmPriceState } from "../../../price/swmPriceTypes";
 import { SWM_POOL_ID, SWM_PRICE_FOOTNOTE, SWM_TOKEN_ADDRESS } from "../../../price/swmPool";
 
@@ -43,6 +43,8 @@ const FRESH: SwmPriceState = {
     changePct1h: 0,
     changePct6h: -3.24,
     hourlyFromUnix: HOUR_START,
+    hourlyEndsLive: false,
+    dailyEndsLive: false,
     dailyUsd: Array.from({ length: 30 }, (_, i) => 0.3 + i / 50),
     dailyFromUnix: DAY_START,
     transactions24h: { buys: 9, sells: 0 },
@@ -231,5 +233,63 @@ describe("when there is no price to show", () => {
     renderPage({ swmPrice: FRESH });
     expect(screen.getByText("the overview")).toBeInTheDocument();
     expect(screen.queryByText("$0.8411")).not.toBeInTheDocument();
+  });
+});
+
+describe("the live price at the end of each series (§6.1)", () => {
+  // 48 hourly closes then the live price; 30 daily closes then the live price.
+  const GENERATED = HOUR_START + 47 * 3600 + 1200;
+  const LIVE: SwmPriceState = {
+    ...FRESH,
+    generatedUnix: GENERATED,
+    sparklineUsd: [...Array.from({ length: 48 }, (_, i) => 0.5 + i / 150), 0.8411],
+    details: FRESH.details
+      ? {
+          ...FRESH.details,
+          hourlyEndsLive: true,
+          dailyUsd: [...Array.from({ length: 30 }, (_, i) => 0.3 + i / 50), 0.8411],
+          dailyEndsLive: true,
+        }
+      : null,
+  };
+
+  it("times the closes from their start and the live point at the relay's generation time", () => {
+    const hourly = seriesFor("48h", LIVE);
+    expect(hourly?.points).toHaveLength(49);
+    expect(hourly?.times[47]).toBe(HOUR_START + 47 * 3600);
+    expect(hourly?.times[48]).toBe(GENERATED);
+    expect(hourly?.endsLive).toBe(true);
+    expect(seriesFor("30d", LIVE)?.times[30]).toBe(GENERATED);
+  });
+
+  it("keeps the live price in every range: 24h is 24 closes and the live price", () => {
+    const day = seriesFor("24h", LIVE);
+    expect(day?.points).toHaveLength(25);
+    expect(day?.points[24]).toBe(0.8411);
+    expect(day?.times[0]).toBe(HOUR_START + 24 * 3600);
+    expect(seriesFor("30d", LIVE)?.points[30]).toBe(0.8411);
+  });
+
+  it("without start times, pins the last close to the generation hour and the live point after it", () => {
+    const untimed = { ...LIVE, details: LIVE.details ? { ...LIVE.details, hourlyFromUnix: null } : null };
+    const series = seriesFor("48h", untimed);
+    expect(series?.times[47]).toBe(Math.floor(GENERATED / 3600) * 3600);
+    expect(series?.times[48]).toBe(GENERATED);
+  });
+
+  it("says 'now' for the live point, in the readout and under the chart", () => {
+    renderPage({ swmPrice: LIVE });
+    const chart = screen.getByTestId("swm-chart");
+    fireEvent.keyDown(chart, { key: "ArrowRight" });
+    expect(screen.getByTestId("swm-chart-readout")).toHaveTextContent("$0.8411now");
+    fireEvent.keyDown(chart, { key: "ArrowLeft" });
+    expect(screen.getByTestId("swm-chart-readout")).not.toHaveTextContent("now");
+    expect(pointLabel(seriesFor("30d", LIVE) as SwmChartSeries, 30)).toBe("now");
+    expect(pointLabel(seriesFor("30d", LIVE) as SwmChartSeries, 29)).toBe("Oct 6");
+  });
+
+  it("treats a series without the live point as closes only", () => {
+    expect(seriesFor("48h", FRESH)?.endsLive).toBe(false);
+    expect(pointLabel(seriesFor("48h", FRESH) as SwmChartSeries, 47)).not.toBe("now");
   });
 });

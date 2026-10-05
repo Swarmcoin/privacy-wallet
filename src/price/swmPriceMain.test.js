@@ -135,11 +135,11 @@ describe("the relay's answer", () => {
     expect(result).toMatchObject({ ok: true, price: { changePct24h: null, sparklineUsd: null, source: null } });
   });
 
-  it("keeps at most the last 48 sparkline points", () => {
+  it("keeps at most the last 49 sparkline points (48 closes and the live price)", () => {
     const points = Array.from({ length: 60 }, (_, i) => 0.5 + i / 100);
     const result = validateSwmPricePayload({ ...RELAY_BODY, sparkline_usd: points }, NOW);
-    expect(result.price.sparklineUsd).toHaveLength(48);
-    expect(result.price.sparklineUsd[47]).toBe(points[59]);
+    expect(result.price.sparklineUsd).toHaveLength(49);
+    expect(result.price.sparklineUsd[48]).toBe(points[59]);
   });
 
   it("passes the relay's stale flag through", () => {
@@ -313,7 +313,7 @@ describe("the price page's fields (§6.1)", () => {
     ...RELAY_BODY,
     hourly_from_unix: 1791054000,
     daily_usd: Array.from({ length: 30 }, (_, i) => 0.3 + i / 50),
-    daily_from_unix: 1788739200,
+    daily_from_unix: 1788652800, // 30 closes ending today (UTC), no live point
     transactions_24h: { buys: 9, sells: 0 },
     pool: { ...RELAY_BODY.pool, fee_pct: 0.9, created_unix: 1791100000 },
   };
@@ -326,8 +326,10 @@ describe("the price page's fields (§6.1)", () => {
       changePct1h: 0,
       changePct6h: 28.75,
       hourlyFromUnix: 1791054000,
+      hourlyEndsLive: false,
       dailyUsd: PAGE_BODY.daily_usd,
-      dailyFromUnix: 1788739200,
+      dailyFromUnix: 1788652800,
+      dailyEndsLive: false,
       transactions24h: { buys: 9, sells: 0 },
       liquidityUsd: 3761.34,
       volume24hUsd: 378.11,
@@ -373,8 +375,10 @@ describe("the price page's fields (§6.1)", () => {
       changePct1h: null,
       changePct6h: null,
       hourlyFromUnix: null,
+      hourlyEndsLive: false,
       dailyUsd: null,
       dailyFromUnix: null,
+      dailyEndsLive: false,
       transactions24h: null,
       liquidityUsd: null,
       volume24hUsd: null,
@@ -394,9 +398,10 @@ describe("the price page's fields (§6.1)", () => {
       },
       NOW,
     );
-    expect(result.price.details.hourlyFromUnix).toBe(1791054000 + 2 * 3600);
-    expect(result.price.details.dailyUsd).toHaveLength(30);
-    expect(result.price.details.dailyFromUnix).toBe(1788739200 + 3 * 86400);
+    expect(result.price.sparklineUsd).toHaveLength(49);
+    expect(result.price.details.hourlyFromUnix).toBe(1791054000 + 1 * 3600);
+    expect(result.price.details.dailyUsd).toHaveLength(31);
+    expect(result.price.details.dailyFromUnix).toBe(1788652800 + 2 * 86400);
   });
 
   it("reads the live relay's answer of 2026-10-05 19:01 UTC, which has no daily series yet", () => {
@@ -415,5 +420,101 @@ describe("the price page's fields (§6.1)", () => {
       poolFeePct: null,
     });
     expect(result.price.details.sources.map((s) => s.ok)).toEqual([true, true]);
+  });
+});
+
+describe("the live price as the last value of each series (§6.1, amended)", () => {
+  // generated_unix 1791223633 is 2026-10-05 17:27:13 UTC.
+  const HOUR0 = 1791223200 - 47 * 3600; // 48 closes, the last one the current hour
+  const DAY0 = 1791158400 - 29 * 86400; // 30 closes, the last one today (UTC)
+  const LIVE_BODY = {
+    ...RELAY_BODY,
+    sparkline_usd: [...Array.from({ length: 48 }, () => 0.8), 0.84114343],
+    hourly_from_unix: HOUR0,
+    daily_usd: [...Array.from({ length: 30 }, () => 0.6), 0.84114343],
+    daily_from_unix: DAY0,
+  };
+
+  it("keeps 48 + 1 hourly and 30 + 1 daily values, and marks the last as live", () => {
+    const { price } = validateSwmPricePayload(LIVE_BODY, NOW);
+    expect(price.sparklineUsd).toHaveLength(49);
+    expect(price.details.dailyUsd).toHaveLength(31);
+    expect(price.details).toMatchObject({
+      hourlyFromUnix: HOUR0,
+      hourlyEndsLive: true,
+      dailyFromUnix: DAY0,
+      dailyEndsLive: true,
+    });
+  });
+
+  it("does not take the last close for the live price when the relay has not appended one", () => {
+    const { price } = validateSwmPricePayload(
+      {
+        ...LIVE_BODY,
+        sparkline_usd: LIVE_BODY.sparkline_usd.slice(0, 48),
+        daily_usd: LIVE_BODY.daily_usd.slice(0, 30),
+      },
+      NOW,
+    );
+    expect(price.details).toMatchObject({ hourlyEndsLive: false, dailyEndsLive: false });
+  });
+
+  it("finds the live point in a young pool's short series by its time", () => {
+    const { price } = validateSwmPricePayload(
+      {
+        ...LIVE_BODY,
+        sparkline_usd: [0.5, 0.6, 0.7, 0.84],
+        hourly_from_unix: 1791223200 - 2 * 3600,
+        daily_usd: [0.5, 0.84],
+        daily_from_unix: 1791158400,
+      },
+      NOW,
+    );
+    expect(price.details).toMatchObject({ hourlyEndsLive: true, dailyEndsLive: true });
+  });
+
+  it("without start times, takes a series one longer than its close count to end live", () => {
+    const { price } = validateSwmPricePayload(
+      { ...LIVE_BODY, hourly_from_unix: undefined, daily_from_unix: undefined },
+      NOW,
+    );
+    expect(price.details).toMatchObject({
+      hourlyFromUnix: null,
+      hourlyEndsLive: true,
+      dailyFromUnix: null,
+      dailyEndsLive: true,
+    });
+    const closesOnly = validateSwmPricePayload(
+      {
+        ...LIVE_BODY,
+        hourly_from_unix: undefined,
+        daily_from_unix: undefined,
+        sparkline_usd: LIVE_BODY.sparkline_usd.slice(1),
+        daily_usd: LIVE_BODY.daily_usd.slice(1),
+      },
+      NOW,
+    );
+    expect(closesOnly.price.details).toMatchObject({ hourlyEndsLive: false, dailyEndsLive: false });
+  });
+
+  it("trims a longer series from the front, moving the start time on and keeping the live point", () => {
+    const { price } = validateSwmPricePayload(
+      {
+        ...LIVE_BODY,
+        sparkline_usd: [0.1, 0.2, ...LIVE_BODY.sparkline_usd],
+        hourly_from_unix: HOUR0 - 2 * 3600,
+        daily_usd: [0.1, ...LIVE_BODY.daily_usd],
+        daily_from_unix: DAY0 - 86400,
+      },
+      NOW,
+    );
+    expect(price.sparklineUsd).toEqual(LIVE_BODY.sparkline_usd);
+    expect(price.details).toMatchObject({
+      hourlyFromUnix: HOUR0,
+      hourlyEndsLive: true,
+      dailyFromUnix: DAY0,
+      dailyEndsLive: true,
+    });
+    expect(price.details.dailyUsd).toEqual(LIVE_BODY.daily_usd);
   });
 });

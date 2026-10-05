@@ -30,10 +30,14 @@ export type SwmPriceDetails = {
   changePct6h: number | null;
   /** The hour of the first `sparklineUsd` value. */
   hourlyFromUnix: number | null;
-  /** Daily closes, oldest first, 2 to 30 points. */
+  /** The last `sparklineUsd` value is the live price, not an hourly close. */
+  hourlyEndsLive: boolean;
+  /** Daily closes, oldest first, 2 to 30 points, plus the live price when `dailyEndsLive`. */
   dailyUsd: number[] | null;
   /** The day of the first `dailyUsd` value. */
   dailyFromUnix: number | null;
+  /** The last `dailyUsd` value is the live price, not a daily close. */
+  dailyEndsLive: boolean;
   transactions24h: { buys: number; sells: number } | null;
   liquidityUsd: number | null;
   volume24hUsd: number | null;
@@ -48,8 +52,10 @@ export const EMPTY_SWM_PRICE_DETAILS: SwmPriceDetails = Object.freeze({
   changePct1h: null,
   changePct6h: null,
   hourlyFromUnix: null,
+  hourlyEndsLive: false,
   dailyUsd: null,
   dailyFromUnix: null,
+  dailyEndsLive: false,
   transactions24h: null,
   liquidityUsd: null,
   volume24hUsd: null,
@@ -64,7 +70,7 @@ export type SwmPriceIpcReading = {
   /** A positive decimal string, exactly as the relay sent it. */
   priceUsd: string;
   changePct24h: number | null;
-  /** Hourly closes, oldest first, 2 to 48 points; null when the relay has none. */
+  /** Hourly closes, oldest first, up to 48, plus the live price as the last value when the relay appends it (details.hourlyEndsLive); null when the relay has none. */
   sparklineUsd: number[] | null;
   source: SwmPriceSource | null;
   generatedUnix: number;

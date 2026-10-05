@@ -123,8 +123,10 @@ export function parseDetails(value: unknown): SwmPriceDetails {
     changePct1h: numOrNull(value.changePct1h),
     changePct6h: numOrNull(value.changePct6h),
     hourlyFromUnix: numOrNull(value.hourlyFromUnix),
-    dailyUsd: seriesOrNull(value.dailyUsd, 30),
+    hourlyEndsLive: value.hourlyEndsLive === true,
+    dailyUsd: seriesOrNull(value.dailyUsd, 31),
     dailyFromUnix: numOrNull(value.dailyFromUnix),
+    dailyEndsLive: value.dailyEndsLive === true,
     transactions24h:
       tx && isNum(tx.buys) && isNum(tx.sells) && tx.buys >= 0 && tx.sells >= 0
         ? { buys: tx.buys, sells: tx.sells }
@@ -153,7 +155,7 @@ export function parseStoredReading(text: string | null): SwmPriceReading | null 
   if (!isNum(r.fetchedAtMs) || !isNum(r.generatedUnix)) return null;
   const sparkline =
     Array.isArray(r.sparklineUsd) && r.sparklineUsd.length >= 2 && r.sparklineUsd.every((p) => isNum(p) && p > 0)
-      ? (r.sparklineUsd as number[]).slice(-48)
+      ? (r.sparklineUsd as number[]).slice(-49)
       : null;
   return {
     priceUsd: r.priceUsd,
