@@ -2,7 +2,7 @@
 
 Newest first. Each entry says what changed for the person using the wallet.
 
-## 0.1.0-mainnet.11 (unreleased)
+## 0.1.0-mainnet.11 (5 October 2026)
 
 - **The SWM price.** On SWARM mainnet wallets the Overview shows the SWM
   price in US dollars beside your balance: the price, the change over 24
@@ -30,6 +30,11 @@ Newest first. Each entry says what changed for the person using the wallet.
   too.
 - Test-coin builds and testnet wallets show no price and make no price
   requests.
+- **The source moved.** The wallet's source code and its issue tracker are
+  now at github.com/Swarmcoin (the Swarm-Official account is gone). The
+  menu's Source and Issues links and the "please report this" sentences
+  point there, and the build fetches the SWARM wallet SDK from there, at
+  exactly the same revisions as before.
 
 ## 0.1.0-mainnet.10 (2 October 2026)
 
