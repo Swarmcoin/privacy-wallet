@@ -206,6 +206,180 @@ p {
   color: var(--honey);
 }
 
+/* The balance in USD, under the balance. Muted; greyer while the price is old. */
+.balance-fiat {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--mid);
+  margin-top: 4px;
+}
+
+.balance-fiat.dim,
+.fiat-hint.dim {
+  color: var(--low);
+}
+
+.fiat-hint {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  color: var(--mid);
+  margin-top: 4px;
+}
+
+/* ── SWM price card (specs/PRICE-DISPLAY.md §3) ───────────────────────── */
+
+.price-card {
+  cursor: pointer;
+}
+
+.price-card:hover {
+  border-color: #3a3229;
+}
+
+.price-card:focus-visible {
+  outline: 2px solid var(--hive-orange);
+  outline-offset: 2px;
+}
+
+.price-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.price-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.price-info {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font-family: "Manrope", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--low);
+}
+
+.price-info:hover,
+.price-info[aria-expanded="true"] {
+  color: var(--mid);
+}
+
+.price-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 0 6px;
+}
+
+.price-value {
+  font-family: "Sora", system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--wax);
+}
+
+.price-value.none {
+  font-size: 15px;
+  color: var(--low);
+}
+
+.price-unit {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--low);
+}
+
+.price-chip {
+  margin-left: auto;
+  align-self: center;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #2c261f;
+  color: var(--mid);
+}
+
+.price-chip.up {
+  color: var(--success);
+  border-color: #1d4532;
+  background: #0f1d16;
+}
+
+.price-chip.down {
+  color: var(--danger);
+  border-color: #4a2a2a;
+  background: #1a1210;
+}
+
+.price-spark {
+  display: block;
+  width: 100%;
+  height: 44px;
+  margin: 2px 0 8px;
+  overflow: visible;
+}
+
+.price-spark-line {
+  fill: none;
+  stroke: var(--hive-orange);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.price-spark-top {
+  stop-color: var(--hive-orange);
+  stop-opacity: 0.28;
+}
+
+.price-spark-bottom {
+  stop-color: var(--hive-orange);
+  stop-opacity: 0;
+}
+
+.price-meta {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--low);
+}
+
+.price-note {
+  font-size: 11.5px;
+  color: var(--mid);
+  margin: 8px 0 0;
+}
+
+/* Old, stale, or not yet confirmed this opening: the price goes grey. */
+.price-card.greyed .price-value {
+  color: var(--low);
+}
+
+.price-card.greyed .price-chip {
+  color: var(--low);
+  border-color: #2c261f;
+  background: transparent;
+}
+
+.price-card.greyed .price-spark-line {
+  stroke: var(--low);
+}
+
+.price-card.greyed .price-spark-top,
+.price-card.greyed .price-spark-bottom {
+  stop-color: var(--low);
+}
+
 /* ── controls ─────────────────────────────────────────────────────────── */
 
 button {
@@ -352,6 +526,82 @@ textarea {
 
 .dot.error {
   background: var(--danger);
+}
+
+/* Price freshness: accent while fresh, amber while ageing, grey (the default) when stale. */
+.dot.fresh {
+  background: var(--hive-orange);
+}
+
+.dot.ageing {
+  background: var(--honey);
+}
+
+/* ── switch (a checkbox that looks like one) ──────────────────────────── */
+
+label.switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 10px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--wax);
+  cursor: pointer;
+}
+
+/* Visually hidden, still focusable and still read out as a switch. */
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+
+.switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid #3a3229;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--mid);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--hive-orange);
+  border-color: var(--hive-orange);
+}
+
+.switch input:checked + .switch-track::after {
+  transform: translateX(14px);
+  background: #1b1004;
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+}
+
+.switch input:disabled + .switch-track {
+  opacity: 0.45;
 }
 
 /* ── address and QR ───────────────────────────────────────────────────── */

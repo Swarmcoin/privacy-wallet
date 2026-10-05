@@ -61,13 +61,33 @@
       <div class="section">
         <h2>What this extension can and cannot do</h2>
         <p class="note">
-          It has no permission to read any web page and makes no network requests of its own. Everything it shows comes
-          from the wallet host on this computer, and the host is the only thing that talks to the SWARM network. Your
-          recovery phrase never enters the browser.
+          It has no permission to read any web page. It makes one kind of network request of its own: while the popup
+          is open on SWARM Mainnet, it asks the SWARM price service (wallet.swarm.green) for the SWM price, once a
+          minute. That request carries no address, no balance and no identifier, and you can switch it off below.
+          Everything else it shows comes from the wallet host on this computer, and the host is the only thing that
+          talks to the SWARM network. Your recovery phrase never enters the browser.
         </p>
         <p class="note">
           The wallet file on disk is not encrypted with a passphrase. It is protected by your Windows account and by
           Windows Hello, which is asked for before unlocking and again before every payment.
+        </p>
+      </div>
+
+      <div class="section">
+        <h2>SWM price</h2>
+        <label class="switch" for="show-price">
+          <input type="checkbox" id="show-price" role="switch" disabled />
+          <span class="switch-track" aria-hidden="true"></span>
+          <span>Show SWM price (USD)</span>
+        </label>
+        <p class="note" id="show-price-help">
+          The price comes from the SWARM price service (wallet.swarm.green), which reads the SWM/ETH pool on Base from
+          GeckoTerminal and DexScreener. Your addresses and balances are never sent. Switch this off and the wallet
+          makes no price requests.
+        </p>
+        <p class="note">
+          Shown in the popup on SWARM Mainnet only. It is an indicative price: the pool is small, and small trades move
+          it. It is not a quote.
         </p>
       </div>
 

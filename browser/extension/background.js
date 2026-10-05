@@ -7,9 +7,10 @@
  * close the port and kill the host mid-payment; and one port means one wallet
  * session, so the side panel and the popup cannot end up unlocked separately.
  *
- * This file makes NO network requests, and the manifest's CSP sets
- * `connect-src 'none'` so it could not if it tried. Everything that reaches
- * SWARM mainnet goes through the host.
+ * This file makes NO network requests. The manifest's CSP allows exactly one
+ * host, `connect-src https://wallet.swarm.green`, for the popup's SWM price
+ * (lib/price.js); nothing here uses it. Everything that reaches SWARM mainnet
+ * goes through the host.
  */
 import { isOwnPage } from "./lib/sender.js";
 import { REWARDS_EXTENSION_ID, addressAnswer, mayAnswerRewards } from "./lib/rewards.js";

@@ -83,6 +83,56 @@
             </div>
             <div class="balance masked" id="balance">⬢⬢⬢.⬢⬢ SWM</div>
             <div class="balance-sub" id="balance-sub"></div>
+            <div class="balance-fiat hidden" id="balance-fiat"></div>
+          </div>
+
+          <!-- SWM price (specs/PRICE-DISPLAY.md §3); SWARM Mainnet only, and only while the setting is on -->
+          <div
+            class="section price-card hidden"
+            id="price-card"
+            role="link"
+            tabindex="0"
+            aria-label="SWM price. Opens the SWM/ETH pool on DexScreener."
+          >
+            <div class="price-head">
+              <img class="price-mark" src="icons/swarm-mark.svg" alt="" />
+              <span class="balance-label">SWM price</span>
+              <span class="dot" id="price-dot"></span>
+              <button
+                class="price-info"
+                id="price-info"
+                type="button"
+                aria-label="About this price"
+                aria-expanded="false"
+                aria-controls="price-note"
+              >
+                ⓘ
+              </button>
+            </div>
+            <div class="price-main">
+              <span class="price-value" id="price-value">…</span>
+              <span class="price-unit" id="price-unit">USD</span>
+              <span class="price-chip hidden" id="price-chip"></span>
+            </div>
+            <svg
+              class="price-spark hidden"
+              id="price-spark"
+              viewBox="0 0 298 44"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <defs>
+                <linearGradient id="price-spark-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop class="price-spark-top" offset="0" />
+                  <stop class="price-spark-bottom" offset="1" />
+                </linearGradient>
+              </defs>
+              <path class="price-spark-area" id="price-spark-area" fill="url(#price-spark-fill)" d="" />
+              <path class="price-spark-line" id="price-spark-line" d="" />
+            </svg>
+            <div class="price-meta" id="price-meta"></div>
+            <p class="price-note hidden" id="price-note"></p>
           </div>
 
           <div class="buttons three">
@@ -126,6 +176,7 @@
             <div>
               <label for="send-amount">Amount</label>
               <input id="send-amount" type="text" inputmode="decimal" placeholder="0.00" />
+              <div class="fiat-hint hidden" id="send-fiat"></div>
             </div>
             <div>
               <label for="send-memo">Memo (optional, shielded)</label>
@@ -143,6 +194,7 @@
             <div>
               <span class="balance-label">Amount</span>
               <div class="amount" id="confirm-amount"></div>
+              <div class="fiat-hint hidden" id="confirm-fiat"></div>
             </div>
             <div>
               <span class="balance-label">To</span>

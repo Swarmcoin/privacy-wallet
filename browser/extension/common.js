@@ -3,7 +3,8 @@
  *
  * Nothing here touches the network, and nothing here holds a key: `command()`
  * hands a name and some parameters to the service worker, which hands them to
- * the host. The screens are views over answers.
+ * the host. The screens are views over answers. (The one request the extension
+ * makes itself, for the SWM price, lives in lib/price.js and the popup.)
  */
 
 /** Asks the host, through the service worker. Never throws. */

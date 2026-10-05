@@ -4,6 +4,11 @@
  * Balances are masked until the person asks to see them, because a popup opens
  * over whatever page is on screen and often in front of whoever is standing
  * behind it. The reveal is per opening and is never remembered.
+ *
+ * The SWM price is the one thing this popup fetches itself, not through the
+ * host: one GET a minute to the SWARM price relay while a wallet screen is
+ * open, on SWARM Mainnet, with the setting on (lib/price.js). The value of a
+ * hidden balance stays hidden; the price itself is not a secret.
  */
 
 import {
@@ -19,6 +24,26 @@ import {
   openExplorer,
 } from "./common.js";
 import { encode, draw } from "./lib/qr.js";
+import {
+  DEXSCREENER_FALLBACK_URL,
+  FRESHNESS,
+  LAST_PRICE_KEY,
+  MASKED_FIAT,
+  MIN_REFETCH_MS,
+  POLL_MS,
+  PRICE_NOTE,
+  SHOW_PRICE_KEY,
+  classify,
+  clockTime,
+  fetchPrice,
+  formatChange,
+  formatFiat,
+  formatUsdPrice,
+  fromStored,
+  metaLine,
+  sparklinePaths,
+  toStored,
+} from "./lib/price.js";
 
 /**
  * Shown on the locked screen while a wallet made before the restart waits to
@@ -54,6 +79,10 @@ function paintRestart(id, text) {
 
 function view(name) {
   for (const v of VIEWS) show(el(`view-${v}`), v === name);
+  // The price is asked for only while a wallet screen is open: never while
+  // locked, and never on the screens before a wallet exists.
+  if (PRICE_VIEWS.includes(name)) startPrice();
+  else stopPrice();
 }
 
 function syncIndicator(kind, text) {
@@ -103,6 +132,7 @@ async function refresh() {
   }
   const status = answer.result;
   state.network = status.network;
+  price.mainnet = isMainnet(status.network);
   state.ticker = status.network.ticker;
   paintNetwork(el("network"), status.network);
 
@@ -164,6 +194,7 @@ async function paintWallet(status) {
 
 function paintBalance(b) {
   state.ticker = b.ticker || "SWM";
+  price.balance = typeof b.shielded === "number" ? b.shielded : null;
   const node = el("balance");
   node.classList.toggle("masked", !state.revealed);
   node.textContent = state.revealed ? formatAmount(b.shielded, b.ticker) : maskAmount(b.shielded, b.ticker);
@@ -176,6 +207,212 @@ function paintBalance(b) {
     parts.push(state.revealed ? `${formatAmount(b.pending, "")} pending` : `${maskAmount(b.pending, "")} pending`);
   }
   setText("balance-sub", parts.join(" · "));
+  paintBalanceFiat();
+}
+
+/* ── SWM price ──────────────────────────────────────────────────────────── */
+
+/** Screens on which the price is shown and kept fresh. */
+const PRICE_VIEWS = ["wallet", "receive", "send", "confirm", "sent"];
+/** How often "updated 12 s ago" is repainted. The request itself is once a minute. */
+const PRICE_REPAINT_MS = 5000;
+/** The sparkline's viewBox: the card's inner width at the popup's 360 px. */
+const SVG_W = 298;
+const SVG_H = 44;
+
+const price = {
+  /** The setting. False until it has been read, so nothing is fetched before it is known. */
+  enabled: false,
+  /** Only SWARM Mainnet has a price; test coins have none. */
+  mainnet: false,
+  /** The last good reading: the remembered one at first, then live ones. */
+  reading: null,
+  /** True once a reading arrived during this opening; until then the remembered one is greyed. */
+  live: false,
+  /** True once one request finished this opening, so "…" can become "Price unavailable". */
+  attempted: false,
+  inFlight: false,
+  lastAttempt: 0,
+  pollTimer: null,
+  repaintTimer: null,
+  /** The shielded balance as the host sent it (SWM, a float), for the fiat line. */
+  balance: null,
+};
+
+function isMainnet(network) {
+  return !!network && network.id === "swarm-mainnet" && network.coinsAreTestCoins === false;
+}
+
+function priceActive() {
+  return price.enabled && price.mainnet;
+}
+
+/** Reads the setting and the last reading. If the setting cannot be read, nothing is fetched. */
+async function loadPriceSetting() {
+  try {
+    const stored = await chrome.storage.local.get({ [SHOW_PRICE_KEY]: true, [LAST_PRICE_KEY]: null });
+    price.enabled = stored[SHOW_PRICE_KEY] !== false;
+    price.reading = price.enabled ? fromStored(stored[LAST_PRICE_KEY]) : null;
+  } catch (_) {
+    price.enabled = false;
+  }
+}
+
+function startPrice() {
+  if (!priceActive()) {
+    stopPrice();
+    paintPrice();
+    return;
+  }
+  const now = Date.now();
+  // A reading this recent was confirmed by an opening a moment ago; do not ask again yet.
+  const recent = !!price.reading && now - price.reading.fetchedAt < MIN_REFETCH_MS;
+  if (recent) price.live = true;
+  paintPrice();
+  if (!price.pollTimer) price.pollTimer = setInterval(pollPrice, POLL_MS);
+  if (!price.repaintTimer) price.repaintTimer = setInterval(paintPrice, PRICE_REPAINT_MS);
+  if (!recent && now - price.lastAttempt >= MIN_REFETCH_MS) pollPrice();
+}
+
+function stopPrice() {
+  clearInterval(price.pollTimer);
+  clearInterval(price.repaintTimer);
+  price.pollTimer = null;
+  price.repaintTimer = null;
+}
+
+async function pollPrice() {
+  if (!priceActive() || price.inFlight) return;
+  price.inFlight = true;
+  price.lastAttempt = Date.now();
+  const answer = await fetchPrice();
+  price.inFlight = false;
+  price.attempted = true;
+  // A refused or failed answer keeps the last good reading (spec §2.2).
+  if (answer.ok && priceActive()) {
+    price.reading = answer.reading;
+    price.live = true;
+    try {
+      await chrome.storage.local.set({ [LAST_PRICE_KEY]: toStored(answer.reading) });
+    } catch (_) {
+      /* still shown; only not remembered */
+    }
+  }
+  paintPrice();
+}
+
+function paintPrice() {
+  const card = el("price-card");
+  if (!priceActive()) {
+    show(card, false);
+    paintBalanceFiat();
+    paintSendFiat();
+    return;
+  }
+  const now = Date.now();
+  const r = price.reading;
+  const freshness = classify(r, now);
+  const usable = !!r && freshness !== FRESHNESS.UNAVAILABLE;
+  // A remembered reading is greyed until this opening has confirmed it.
+  const greyed = !usable || freshness === FRESHNESS.STALE || !price.live;
+
+  show(card, true);
+  card.classList.toggle("greyed", greyed);
+  let dotKind = "";
+  if (usable && freshness === FRESHNESS.FRESH && price.live) dotKind = "fresh";
+  else if (usable && freshness === FRESHNESS.AGEING) dotKind = "ageing";
+  el("price-dot").className = dotKind ? `dot ${dotKind}` : "dot";
+
+  const value = el("price-value");
+  const chip = el("price-chip");
+  if (usable) {
+    value.textContent = formatUsdPrice(r.price_usd);
+    value.classList.remove("none");
+    show(el("price-unit"), true);
+    const change = formatChange(r.change_pct_h24);
+    show(chip, !!change);
+    if (change) {
+      chip.textContent = change.text;
+      chip.className = `price-chip ${change.direction}`;
+    }
+    paintSparkline(r.sparkline_usd);
+    setText("price-meta", keepTogether(metaLine(r, now)));
+  } else {
+    const waiting = !price.attempted && !r;
+    value.textContent = waiting ? "…" : "Price unavailable";
+    value.classList.toggle("none", !waiting);
+    show(el("price-unit"), waiting);
+    show(chip, false);
+    paintSparkline(null);
+    setText("price-meta", keepTogether(r ? `Base · Uniswap v4 · last reading ${clockTime(r.fetchedAt)}` : "Base · Uniswap v4"));
+  }
+  paintBalanceFiat();
+  paintSendFiat();
+}
+
+/** The meta line wraps only between its parts, never inside "updated 12 s ago". */
+function keepTogether(line) {
+  return line
+    .split(" · ")
+    .map((part) => part.replace(/ /g, "\u00a0"))
+    .join(" · ");
+}
+
+function paintSparkline(values) {
+  const paths = values ? sparklinePaths(values, SVG_W, SVG_H) : null;
+  show(el("price-spark"), !!paths);
+  el("price-spark-line").setAttribute("d", paths ? paths.line : "");
+  el("price-spark-area").setAttribute("d", paths ? paths.area : "");
+}
+
+/** The price to multiply by, or null when there is none worth showing. */
+function usablePrice() {
+  if (!priceActive() || !price.reading) return null;
+  const freshness = classify(price.reading, Date.now());
+  if (freshness === FRESHNESS.UNAVAILABLE) return null;
+  return { text: price.reading.price_usd, dim: freshness !== FRESHNESS.FRESH || !price.live };
+}
+
+/** "≈ $… USD" under the balance, hidden with it. */
+function paintBalanceFiat() {
+  const node = el("balance-fiat");
+  const p = usablePrice();
+  const text = p && price.balance !== null ? formatFiat(price.balance, p.text) : null;
+  show(node, !!text);
+  if (!text) return;
+  node.textContent = state.revealed ? text : MASKED_FIAT;
+  node.classList.toggle("dim", p.dim);
+}
+
+/** The fiat value of a typed amount, or null. */
+function fiatForAmount(raw) {
+  const p = usablePrice();
+  const typed = String(raw === undefined || raw === null ? "" : raw).trim();
+  const amount = Number(typed);
+  if (!p || !typed || !Number.isFinite(amount) || amount <= 0) return null;
+  const text = formatFiat(amount, p.text);
+  return text ? { text, dim: p.dim } : null;
+}
+
+function paintFiatHint(id, fiat) {
+  const node = el(id);
+  show(node, !!fiat);
+  if (!fiat) return;
+  node.textContent = fiat.text;
+  node.classList.toggle("dim", fiat.dim);
+}
+
+/** The line under the amount being typed, and the one on the confirmation screen. */
+function paintSendFiat() {
+  paintFiatHint("send-fiat", fiatForAmount(el("send-amount").value));
+  paintFiatHint("confirm-fiat", state.pendingSend ? fiatForAmount(state.pendingSend.amount) : null);
+}
+
+function openListing() {
+  // lib/price.js has already held the relay's link to https://dexscreener.com/base/0x…
+  const url = (price.reading && price.reading.dexscreener_url) || DEXSCREENER_FALLBACK_URL;
+  chrome.tabs.create({ url });
+  window.close();
 }
 
 /* ── receive ────────────────────────────────────────────────────────────── */
@@ -218,6 +455,7 @@ function review() {
   setText("confirm-amount", formatAmount(amount, state.ticker));
   setText("confirm-to", to);
   setText("confirm-memo", memo || "");
+  paintSendFiat();
   show(el("confirm-memo-row"), !!memo);
   setError("confirm-error", null);
   view("confirm");
@@ -248,6 +486,25 @@ async function doSend() {
 /* ── wiring ─────────────────────────────────────────────────────────────── */
 
 el("nohost-retry").addEventListener("click", refresh);
+
+el("price-card").addEventListener("click", openListing);
+el("price-card").addEventListener("keydown", (e) => {
+  if (e.target !== e.currentTarget) return;
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    openListing();
+  }
+});
+setText("price-note", PRICE_NOTE);
+el("price-info").title = PRICE_NOTE;
+el("price-info").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const note = el("price-note");
+  const open = note.classList.contains("hidden");
+  show(note, open);
+  el("price-info").setAttribute("aria-expanded", String(open));
+});
+el("send-amount").addEventListener("input", paintSendFiat);
 
 el("share-yes").addEventListener("click", () => answerRewardsQuestion(true));
 el("share-no").addEventListener("click", () => answerRewardsQuestion(false));
@@ -342,4 +599,16 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.type === "swarm.rewards.consent-pending") refresh();
 });
 
-refresh();
+// The setting can be changed in the settings tab while this popup is open.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !changes[SHOW_PRICE_KEY]) return;
+  price.enabled = changes[SHOW_PRICE_KEY].newValue !== false;
+  if (!price.enabled) price.reading = null;
+  if (PRICE_VIEWS.some((v) => !el(`view-${v}`).classList.contains("hidden"))) startPrice();
+  else paintPrice();
+});
+
+window.addEventListener("pagehide", stopPrice);
+
+// The setting is read before anything else, so no request can go out before it is known.
+loadPriceSetting().then(refresh);

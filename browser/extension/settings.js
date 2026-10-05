@@ -7,6 +7,7 @@
  */
 
 import { command, el, show, setText, setError, paintNetwork } from "./common.js";
+import { SHOW_PRICE_KEY, LAST_PRICE_KEY } from "./lib/price.js";
 
 async function load() {
   const answer = await command("status");
@@ -71,5 +72,27 @@ el("rewards-revoke").addEventListener("click", async () => {
   await loadRewards();
 });
 
+/* ── SWM price ──────────────────────────────────────────────────────────── */
+
+async function loadPriceSetting() {
+  const box = el("show-price");
+  box.setAttribute("aria-describedby", "show-price-help");
+  try {
+    const stored = await chrome.storage.local.get({ [SHOW_PRICE_KEY]: true });
+    box.checked = stored[SHOW_PRICE_KEY] !== false;
+    box.disabled = false;
+  } catch (_) {
+    box.checked = false;
+  }
+}
+
+el("show-price").addEventListener("change", async (e) => {
+  const on = e.target.checked;
+  // Off also forgets the last price, so nothing about it is kept either.
+  await chrome.storage.local.set({ [SHOW_PRICE_KEY]: on });
+  if (!on) await chrome.storage.local.remove(LAST_PRICE_KEY);
+});
+
 load();
 loadRewards();
+loadPriceSetting();
