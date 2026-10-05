@@ -23,6 +23,7 @@ import { PerformanceLevelEnum } from "../components/appstate/enums/PerformanceLe
 import { AddressScopeEnum } from "../components/appstate/enums/AddressScopeEnum";
 import { UNKNOWN_MIXNET_VIEW } from "../rpc/components/mixnetPresenter";
 import { INITIAL_SERVER_HEALTH } from "../rpc/components/serverHealth";
+import { SWM_PRICE_OFF, SwmPriceState } from "../price/swmPriceTypes";
 
 /**
  * Invented wallet state, for looking at the screens without a wallet.
@@ -236,6 +237,9 @@ function baseState(overrides: Partial<AppState>): AppState {
     handleShieldButton: () => {},
     addAddressBookEntry: () => {},
     zecPrice: 0,
+    swmPrice: SWM_PRICE_OFF,
+    showSwmPrice: true,
+    setShowSwmPrice: () => {},
     mixnetView: UNKNOWN_MIXNET_VIEW,
     serverHealth: INITIAL_SERVER_HEALTH,
     rotateServer: () => {},
@@ -305,6 +309,46 @@ SCENARIOS.push({
     addressesTransparent: [],
   }),
 });
+
+/**
+ * The SWM price in each state the card can be in, for `?price=<kind>`.
+ *
+ * The values are the specification's example document (GeckoTerminal's
+ * reading of 2026-10-05 18:07 UTC and the hourly closes before it). The
+ * picture only shows them on a build whose profile is swarm-mainnet: a
+ * test-coin build draws no price whatever the state says.
+ */
+export function mockSwmPrice(kind: string | null): SwmPriceState | null {
+  if (!kind) return null;
+  const fresh: SwmPriceState = {
+    priceUsd: "0.84114343",
+    changePct24h: 36.72,
+    sparklineUsd: [0.5259, 0.5412, 0.573, 0.5688, 0.6361, 0.629, 0.6533, 0.7104, 0.7537, 0.748, 0.8411],
+    source: "geckoterminal",
+    generatedUnix: now - 12,
+    fetchedAtMs: Date.now() - 12_000,
+    status: "fresh",
+    pending: false,
+  };
+  switch (kind) {
+    case "fresh":
+      return fresh;
+    case "down":
+      return { ...fresh, changePct24h: -3.24, sparklineUsd: [...(fresh.sparklineUsd ?? [])].reverse() };
+    case "ageing":
+      return { ...fresh, status: "ageing", fetchedAtMs: Date.now() - 12 * 60_000 };
+    case "stale":
+      return { ...fresh, status: "stale", fetchedAtMs: Date.now() - 41 * 60_000 };
+    case "unavailable":
+      return { ...SWM_PRICE_OFF, status: "unavailable" };
+    case "pending":
+      return { ...SWM_PRICE_OFF, status: "unavailable", pending: true };
+    case "off":
+      return SWM_PRICE_OFF;
+    default:
+      return null;
+  }
+}
 
 export function scenarioById(id: string): MockScenario {
   return SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0];
